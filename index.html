@@ -1,0 +1,2671 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Z-Chat</title>
+
+<style>
+:root {
+  --primary: #25d366;
+  --bg-dark: #0b141a;
+  --panel: rgba(32, 44, 51, 0.94);
+  --sent: #005c4b;
+  --received: #202c33;
+  --glass: rgba(255, 255, 255, 0.07);
+  --danger: #ff4d4d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg-dark);
+  color: white;
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Custom Scrollbars[cite: 1] */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(37, 211, 102, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+#canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+.app { position: relative; height: 100vh; height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1; padding: 12px; }
+
+/* Modern Glassmorphic UI & Neon Green Glow Borders[cite: 1] */
+.card, #chatScreen, .call-card, .requests-card {
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 2rem;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.15), 0 12px 40px rgba(0,0,0,0.5);
+}
+
+.card { width: 100%; max-width: 400px; }
+
+#chatScreen { display: none; width: 100%; max-width: 900px; height: 96vh; height: 96dvh; border-radius: 18px; flex-direction: column; overflow: hidden; box-shadow: 0 0 25px rgba(37, 211, 102, 0.2), 0 14px 50px rgba(0,0,0,0.7); }
+
+.header { padding: 12px 18px; background: rgba(0,0,0,0.4); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--glass); }
+.header-info { display: flex; flex-direction: column; cursor: pointer; }
+.header-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-btns button { background: none; border: 1px solid var(--glass); color: #ccc; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; transition: 0.2s; }
+.header-btns button:hover { color: white; background: var(--glass); border-color: var(--primary); }
+
+.status-indicator { font-size: 0.75rem; color: #aaa; display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #777; }
+.status-dot.online { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+/* Modals */
+.confirm-modal, .call-modal, .requests-modal, .info-modal, .media-modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+}
+
+.media-modal {
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 3000;
+  flex-direction: column;
+}
+
+.media-modal-content {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.media-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 25px;
+  background: var(--glass);
+  color: white;
+  border: 1px solid var(--glass);
+  font-size: 1.2rem;
+  padding: 8px 14px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.call-card {
+  padding: 2rem;
+  border-radius: 20px;
+  text-align: center;
+  width: 100%;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+  max-height: 320px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.video-grid video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+  display: none;
+}
+.video-grid video.active { display: block; }
+
+/* Control Panels */
+#adminGroupPanel, #adminMemberPanel {
+  display: none;
+  padding: 10px 18px;
+  background: rgba(37, 211, 102, 0.08);
+  border-bottom: 1px solid rgba(37, 211, 102, 0.15);
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#adminMemberPanel { background: rgba(37, 211, 102, 0.04); }
+#adminGroupPanel input, #adminMemberPanel input {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+/* Search Bar & Requests */
+.search-bar-container { padding: 12px 18px; background: rgba(0,0,0,0.25); display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--glass); position: relative; }
+.search-bar-container input { flex: 1; padding: 9px 14px; font-size: 0.9rem; }
+.requests-badge-btn { position: relative; background: var(--glass); border: 1px solid var(--glass); color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+.badge-count { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 50%; display: none; }
+
+.chat-filter-container { padding: 6px 18px; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--glass); display: none; }
+.chat-filter-container input { width: 100%; padding: 6px 10px; font-size: 0.8rem; }
+
+#userList { display: flex; padding: 10px 18px; gap: 10px; overflow-x: auto; border-bottom: 1px solid var(--glass); background: rgba(0,0,0,0.15); flex-shrink: 0; }
+.user-chip { position: relative; padding: 8px 16px; background: var(--glass); border-radius: 20px; cursor: pointer; white-space: nowrap; transition: 0.3s; border: 1px solid transparent; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.user-chip.active { background: var(--primary); color: black; font-weight: bold; border-color: var(--primary); box-shadow: 0 0 10px rgba(37, 211, 102, 0.4); }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #777; }
+.chip-dot.online { background: #00ff66; }
+
+.unread-arrow-badge {
+  background: var(--danger);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+
+/* Suggestions Dropdown */
+#searchSuggestions { display: none; position: absolute; top: 65px; left: 18px; right: 18px; background: var(--panel); border: 1px solid var(--glass); border-radius: 10px; z-index: 100; max-height: 220px; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.6); backdrop-filter: blur(18px); }
+.suggestion-item { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass); font-size: 0.9rem; }
+.suggestion-item:hover { background: rgba(255,255,255,0.08); }
+
+#messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Micro-animations for message entry[cite: 1] */
+@keyframes bubbleEntry {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px; position: relative; font-size: 0.95rem; line-height: 1.4; word-break: break-word; user-select: none; cursor: pointer; animation: bubbleEntry 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.bubble.sent { align-self: flex-end; background: var(--sent); border-bottom-right-radius: 2px; border: 1px solid rgba(37, 211, 102, 0.2); }
+.bubble.received { align-self: flex-start; background: var(--received); border-bottom-left-radius: 2px; }
+.bubble img, .bubble video { border-radius: 8px; margin-top: 5px; display: block; border: 1px solid rgba(255,255,255,0.1); width: 220px; height: 160px; object-fit: cover; cursor: pointer; transition: transform 0.2s; }
+.bubble img:hover, .bubble video:hover { opacity: 0.9; }
+.bubble audio { margin-top: 5px; width: 100%; min-width: 220px; }
+.meta { font-size: 0.7rem; opacity: 0.65; text-align: right; margin-top: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.seen-status { font-weight: bold; color: #4dc3ff; }
+
+.msg-actions-inline { display: inline-flex; gap: 6px; margin-left: 6px; font-size: 0.7rem; }
+.msg-action-link { color: #a3f1c0; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; font-size: 0.7rem; }
+.msg-action-link.danger { color: #ff8080; }
+
+.reply-quote { background: rgba(0,0,0,0.3); border-left: 3px solid var(--primary); padding: 5px 10px; border-radius: 4px; font-size: 0.85rem; margin-bottom: 6px; opacity: 0.9; }
+.reply-preview-bar { display: none; padding: 8px 16px; background: rgba(0,0,0,0.4); border-top: 1px solid var(--glass); align-items: center; justify-content: space-between; font-size: 0.85rem; }
+
+.reactions-container { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.reaction-badge { background: rgba(0,0,0,0.45); border: 1px solid var(--glass); border-radius: 12px; padding: 2px 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 3px; }
+
+#emojiTray { display: none; position: absolute; bottom: 75px; left: 18px; background: var(--panel); border: 1px solid var(--glass); padding: 12px; border-radius: 14px; backdrop-filter: blur(18px); grid-template-columns: repeat(6, 1fr); gap: 8px; z-index: 10; box-shadow: 0 6px 25px rgba(0,0,0,0.7); }
+.emoji-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 4px; border-radius: 6px; }
+.emoji-btn:hover { background: var(--glass); }
+
+.inputBar { padding: 12px 18px; background: rgba(0,0,0,0.4); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; border-top: 1px solid rgba(37, 211, 102, 0.2); }
+input { background: rgba(0,0,0,0.35); border: 1px solid var(--glass); color: white; padding: 10px 12px; border-radius: 8px; outline: none; font-size: 0.95rem; transition: border-color 0.2s; }
+input:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(37, 211, 102, 0.25); }
+#messageInput { flex: 1; min-width: 140px; }
+
+.media-actions { display: flex; gap: 6px; align-items: center; }
+.action-btn { background: var(--glass); border: 1px solid var(--glass); color: white; padding: 10px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+.action-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--primary); }
+.action-btn.recording { background: var(--danger); animation: pulse 1.2s infinite; }
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+button { background: var(--primary); border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; color: #000; transition: transform 0.1s, box-shadow 0.2s; }
+button:hover { box-shadow: 0 0 10px rgba(37, 211, 102, 0.5); }
+button:active { transform: scale(0.97); }
+
+.input-group { display: flex; flex-direction: column; gap: 12px; }
+
+.custom-alert { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; background: var(--primary); color: black; font-weight: bold; z-index: 3000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center; max-width: 90%; }
+.custom-alert.error { background: var(--danger); color: white; }
+
+.requests-card { background: var(--panel); padding: 1.5rem; border-radius: 16px; width: 100%; max-width: 360px; border: 1px solid var(--glass); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+.request-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--glass); font-size: 0.9rem; }
+
+.device-accounts-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+.device-account-chip { display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 8px 12px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: 0.2s; }
+.device-account-chip:hover { border-color: var(--primary); }
+
+@media (max-width: 600px) {
+  .app { padding: 0; justify-content: flex-start; }
+  #chatScreen { width: 100%; height: 100vh; height: 100dvh; border-radius: 0; border: none; margin: 0; }
+  .card { width: 92%; padding: 1.5rem; }
+  .inputBar { padding: 8px 12px; }
+  .header-btns button { padding: 5px 8px; font-size: 0.75rem; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="canvas-container"></div>
+<div id="customAlert" class="custom-alert"></div>
+
+<div id="mediaModal" class="media-modal">
+  <button class="media-modal-close" id="mediaModalCloseBtn">✕</button>
+  <div id="mediaModalContainer" style="display:flex; align-items:center; justify-content:center; width:100%; height:100%;"></div>
+</div>
+
+<div id="confirmModal" class="confirm-modal">
+  <div class="card" style="text-align: center; max-width: 320px;">
+    <h3 style="margin-top: 0; color: var(--danger);">Confirm Action</h3>
+    <p id="confirmMessage" style="font-size: 0.95rem; line-height: 1.4; color: #eee; margin-bottom: 20px;"></p>
+    <div style="display: flex; gap: 10px; justify-content: center;">
+      <button id="confirmYesBtn" style="background: var(--danger); color: white; flex: 1;">Yes</button>
+      <button id="confirmNoBtn" style="background: var(--glass); color: white; flex: 1;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="requestsModal" class="requests-modal">
+  <div class="requests-card">
+    <h3 style="margin-top:0; color:var(--primary)">Friend Requests</h3>
+    <div id="requestsList" style="display:flex; flex-direction:column; gap:10px; margin: 15px 0;"></div>
+    <button id="closeRequestsModal" style="width:100%; background:var(--glass); color:white;">Close</button>
+  </div>
+</div>
+
+<div id="groupInfoModal" class="info-modal">
+  <div class="requests-card">
+    <h3 id="groupInfoTitle" style="margin-top:0; color:var(--primary)">Group Members</h3>
+    <div id="groupMembersList" style="display:flex; flex-direction:column; gap:8px; margin: 15px 0; max-height:220px; overflow-y:auto;"></div>
+    <div style="display:flex; gap:8px;">
+      <button id="renameGroupBtn" style="flex:1; background:var(--glass); color:white; font-size:0.85rem; display:none;">Rename Group</button>
+      <button id="closeGroupInfoModal" style="flex:1; background:var(--primary); color:black; font-size:0.85rem;">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="callModal" class="call-modal">
+  <div class="call-card">
+    <h3 id="callTitle" style="margin: 0; color: var(--primary);">Incoming Call</h3>
+    <p id="callStatusText" style="margin: 0; font-size: 0.9rem; color: #ccc;">Connecting...</p>
+    <div class="video-grid" id="videoGridContainer">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay playsinline muted style="width: 100px; height: 75px; position: absolute; bottom: 10px; right: 10px; border-radius: 6px; border: 1px solid #fff;"></video>
+    </div>
+    <div style="display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap;" id="callActionButtons">
+      <button id="acceptCallBtn" style="background: var(--primary); display: none; flex: 1;">Accept</button>
+      <button id="toggleMicBtn" style="background: var(--glass); color: white; flex: 1; display: none;">Mute Mic</button>
+      <button id="toggleCamBtn" style="background: var(--glass); color: white; flex: 1; display: none;">Cam Off</button>
+      <button id="endCallBtn" style="background: var(--danger); color: white; flex: 1;">End Call</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <div id="loginScreen">
+    <div class="card">
+      <h2 style="margin-top:0; color:var(--primary); text-align:center;">Z-Chat</h2>
+      
+      <div id="deviceAccountSection" style="display:none; margin-bottom: 15px;">
+        <div style="font-size:0.8rem; color:#aaa; margin-bottom:6px;">Accounts on this device (<span id="deviceCountLabel">0</span>/3):</div>
+        <div id="deviceAccountsList" class="device-accounts-list"></div>
+        <button id="addNewAccountBtn" style="width:100%; background:var(--glass); color:white; font-size:0.85rem; margin-bottom:10px; display:none;">+ Add Another Account</button>
+      </div>
+
+      <div id="authFormContainer">
+        <div class="input-group">
+          <input id="username" placeholder="Username">
+          <input id="password" type="password" placeholder="Password">
+        </div>
+        <button id="authActionBtn" style="width:100%; margin-top:12px;">Log In</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chatScreen" style="position:relative;">
+    <div class="header">
+      <div class="header-info" id="chatHeaderClickable" title="Click for info / rename">
+        <div id="ownerDisplayLabel" style="font-size: 0.75rem; color: var(--primary); font-weight: bold;">Owner: <span id="ownerNameSpan"></span></div>
+        <div id="chatTitle" style="font-weight:bold; font-size:1.1rem;">Z-Chat Direct</div>
+        <div class="status-indicator" id="chatStatusIndicator">
+          <span class="status-dot" id="headerStatusDot"></span>
+          <span id="headerStatusText">Select a chat</span>
+        </div>
+      </div>
+      <div class="header-btns">
+        <button id="voiceCallBtn" title="Voice Call" style="display:none;">📞 Call</button>
+        <button id="videoCallBtn" title="Video Call" style="display:none;">📹 Video</button>
+        <button id="toggleFilterBtn" title="Search Chat Messages" style="background: var(--glass); color: white;">🔍 Chat Filter</button>
+        <button id="blockUserBtn" title="Block User" style="display: none; background: var(--danger); color: white; border: none;">Block</button>
+        <button id="deleteGroupBtn" style="display: none; background: var(--danger); color: white; border: none;">Disband</button>
+        <button id="unfriendBtn" title="Unfriend User" style="display: none; background: var(--danger); color: white; border: none;">Unfriend</button>
+        <button id="renameProfileBtn" title="Rename Profile" style="background: var(--glass); color: white;">Rename Profile</button>
+        <button id="logoutBtn" title="Log Out" style="background: var(--glass); color: white;">Log Out</button>
+        <button id="deleteChatBtn">Clear</button>
+        <button id="deleteProfileBtn">Delete</button>
+      </div>
+    </div>
+
+    <!-- In-Chat Message Search Filter Bar[cite: 1] -->
+    <div id="chatFilterContainer" class="chat-filter-container">
+      <input id="chatMessageFilterInput" placeholder="⚡ Search inside current chat window...">
+    </div>
+
+    <div id="adminGroupPanel" style="display: flex;">
+      <input id="newGroupName" placeholder="New Group Name...">
+      <button id="createGroupBtn">Create Group</button>
+    </div>
+
+    <div id="adminMemberPanel">
+      <span id="memberPanelLabel" style="font-size: 0.8rem; color: #aaa; white-space: nowrap;">Add to <strong id="adminSelectedGroupName" style="color:var(--primary)">Group</strong>:</span>
+      <input id="addMemberUsername" placeholder="Username...">
+      <button id="addMemberBtn">Add</button>
+    </div>
+
+    <div class="search-bar-container">
+      <input id="userSearchInput" placeholder="🔍 Search usernames to add...">
+      <button id="requestsBtn" class="requests-badge-btn">Requests <span id="requestBadgeCount" class="badge-count">0</span></button>
+      <div id="searchSuggestions"></div>
+    </div>
+
+    <div id="userList"></div>
+    <div id="messages"></div>
+
+    <div id="replyPreviewBar" class="reply-preview-bar">
+      <span id="replyPreviewText">Replying to message...</span>
+      <button id="cancelReplyBtn" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 1rem;">✕</button>
+    </div>
+
+    <div class="inputBar">
+      <div id="emojiTray">
+        <button class="emoji-btn" onclick="insertEmoji('😊')">😊</button>
+        <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+        <button class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+        <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+        <button class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
+        <button class="emoji-btn" onclick="insertEmoji('✨')">✨</button>
+        <button class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
+        <button class="emoji-btn" onclick="insertEmoji('🚀')">🚀</button>
+        <button class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
+        <button class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
+        <button class="emoji-btn" onclick="insertEmoji('💬')">💬</button>
+        <button class="emoji-btn" onclick="insertEmoji('💯')">💯</button>
+      </div>
+
+      <div class="media-actions">
+        <button class="action-btn" id="emojiToggleBtn" title="Emojis">😊</button>
+        <button class="action-btn" id="attachBtn" title="Attach Files">📎</button>
+        <input type="file" id="fileInput" accept="image/*,video/*,audio/*" multiple style="display:none;">
+        <button class="action-btn" id="recordVoiceBtn" title="Hold or Tap to Record Voice">🎤</button>
+      </div>
+      <input id="messageInput" placeholder="Write a message...">
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, where, limit, startAfter, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSy...", 
+  authDomain: "nexon-p2p.firebaseapp.com",
+  projectId: "nexon-p2p",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const CLOUD_NAME = "dju4t3pwa";
+const UPLOAD_PRESET = "SOCIAL";
+
+let DEVICE_ID = "";
+async function getSecureDeviceFingerprint() {
+  const nav = window.navigator;
+  const sc = window.screen;
+  const rawProps = [
+    nav.userAgent,
+    nav.language,
+    nav.hardwareConcurrency || 'unknown',
+    nav.deviceMemory || 'unknown',
+    sc.width,
+    sc.height,
+    sc.colorDepth,
+    new Date().getTimezoneOffset()
+  ].join('|||');
+
+  const msgBuffer = new TextEncoder().encode(rawProps);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+getSecureDeviceFingerprint().then(id => {
+  DEVICE_ID = id;
+  initDeviceAccountsUI();
+});
+
+function getDeviceAccounts() {
+  try {
+    const data = localStorage.getItem(`zchat_device_accounts_${DEVICE_ID}`);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveDeviceAccount(username) {
+  let accounts = getDeviceAccounts();
+  if (!accounts.includes(username)) {
+    if (accounts.length >= 3) return false;
+    accounts.push(username);
+    localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+  }
+  return true;
+}
+
+function removeDeviceAccount(username) {
+  let accounts = getDeviceAccounts();
+  accounts = accounts.filter(acc => acc !== username);
+  localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+}
+
+function initDeviceAccountsUI() {
+  const accounts = getDeviceAccounts();
+  const section = document.getElementById("deviceAccountSection");
+  const listContainer = document.getElementById("deviceAccountsList");
+  const countLabel = document.getElementById("deviceCountLabel");
+  const addBtn = document.getElementById("addNewAccountBtn");
+  const authForm = document.getElementById("authFormContainer");
+  const usernameInput = document.getElementById("username");
+
+  countLabel.textContent = accounts.length;
+  listContainer.innerHTML = "";
+
+  if (accounts.length > 0) {
+    section.style.display = "block";
+    accounts.forEach(acc => {
+      const chip = document.createElement("div");
+      chip.className = "device-account-chip";
+      chip.innerHTML = `
+        <span style="font-weight:bold; color:var(--primary);">@${acc}</span>
+        <button style="padding:4px 10px; font-size:0.75rem;" onclick="switchDeviceAccount('${acc}')">Log In</button>
+      `;
+      listContainer.appendChild(chip);
+    });
+
+    if (accounts.length < 3) {
+      addBtn.style.display = "block";
+      usernameInput.style.display = "block";
+    } else {
+      addBtn.style.display = "none";
+      usernameInput.style.display = "none";
+    }
+    authForm.style.display = "block";
+  } else {
+    section.style.display = "none";
+    usernameInput.style.display = "block";
+    authForm.style.display = "block";
+  }
+}
+
+window.switchDeviceAccount = (usernameVal) => {
+  document.getElementById("username").value = usernameVal;
+  document.getElementById("password").value = "";
+  document.getElementById("password").focus();
+};
+
+document.getElementById("addNewAccountBtn").onclick = () => {
+  document.getElementById("authFormContainer").style.display = "block";
+  document.getElementById("username").style.display = "block";
+  document.getElementById("username").value = "";
+  document.getElementById("password").value = "";
+  document.getElementById("username").focus();
+};
+
+const rateLimits = {};
+function checkRateLimit(actionKey, limitMs) {
+  const now = Date.now();
+  if (rateLimits[actionKey] && now - rateLimits[actionKey] < limitMs) {
+    return false;
+  }
+  rateLimits[actionKey] = now;
+  return true;
+}
+
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "audio/webm", "audio/mp3", "audio/wav", "audio/ogg"];
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const MAX_FILES_PER_MESSAGE = 5;
+
+async function validateAndUploadFile(file) {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("File size exceeds the 15MB limit.");
+  }
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type or format not supported.");
+  }
+  return await uploadToCloudinary(file);
+}
+
+async function uploadToCloudinary(file) {
+  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", UPLOAD_PRESET);
+
+  const res = await fetch(url, { method: "POST", body: formData });
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  
+  return { 
+    url: data.secure_url, 
+    public_id: data.public_id || extractPublicIdFromUrl(data.secure_url), 
+    type: file.type 
+  };
+}
+
+function extractPublicIdFromUrl(secureUrl) {
+  try {
+    const parts = secureUrl.split('/');
+    const filenameWithExt = parts[parts.length - 1];
+    const filename = filenameWithExt.substring(0, filenameWithExt.lastIndexOf('.'));
+    const folderIndex = parts.indexOf('upload');
+    if (folderIndex !== -1 && parts.length > folderIndex + 2) {
+      const folderPath = parts.slice(folderIndex + 2, parts.length - 1).join('/');
+      return folderPath ? `${folderPath}/${filename}` : filename;
+    }
+    return filename;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function queueCloudinaryDeletion(attachments) {
+  if (!attachments || !Array.isArray(attachments)) return;
+  for (const att of attachments) {
+    if (att.public_id || att.url) {
+      try {
+        await addDoc(collection(db, "cloudinary_queue"), {
+          public_id: att.public_id || extractPublicIdFromUrl(att.url),
+          url: att.url,
+          status: "pending",
+          time: Date.now()
+        });
+      } catch (e) {}
+    }
+  }
+}
+
+const mediaModal = document.getElementById("mediaModal");
+const mediaModalContainer = document.getElementById("mediaModalContainer");
+document.getElementById("mediaModalCloseBtn").onclick = () => {
+  mediaModal.style.display = "none";
+  mediaModalContainer.innerHTML = "";
+};
+
+window.openMediaModal = (url, type) => {
+  mediaModalContainer.innerHTML = "";
+  if (type && type.startsWith("image/")) {
+    mediaModalContainer.innerHTML = `<img src="${url}" class="media-modal-content">`;
+  } else if (type && type.startsWith("video/")) {
+    mediaModalContainer.innerHTML = `<video src="${url}" controls autoplay class="media-modal-content"></video>`;
+  }
+  mediaModal.style.display = "flex";
+};
+
+window.downloadMedia = async (url, filename) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (e) {
+    showAlert("Failed to download file", true);
+  }
+};
+
+function renderFile(url, type) {
+  if (!url) return "";
+  const escapedUrl = url.replace(/'/g, "\\'");
+  const escapedType = (type || "").replace(/'/g, "\\'");
+  if (type && type.startsWith("image/")) {
+    return `
+      <div style="position:relative; display:inline-block; margin-bottom:5px;">
+        <img src="${url}" loading="lazy" onclick="openMediaModal('${escapedUrl}', '${escapedType}')">
+        <button style="position:absolute; bottom:8px; right:8px; padding:4px 8px; font-size:0.7rem; background:rgba(0,0,0,0.7); color:white; border-radius:4px;" onclick="event.stopPropagation(); downloadMedia('${escapedUrl}', 'image.jpg')">📥 Download</button>
+      </div>`;
+  }
+  if (type && type.startsWith("video/")) {
+    return `
+      <div style="position:relative; display:inline-block; margin-bottom:5px;">
+        <video src="${url}" controls preload="metadata" onclick="openMediaModal('${escapedUrl}', '${escapedType}')"></video>
+        <button style="position:absolute; bottom:8px; right:8px; padding:4px 8px; font-size:0.7rem; background:rgba(0,0,0,0.7); color:white; border-radius:4px;" onclick="event.stopPropagation(); downloadMedia('${escapedUrl}', 'video.mp4')">📥 Download</button>
+      </div>`;
+  }
+  if (type && type.startsWith("audio/")) {
+    return `
+      <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px;">
+        <div style="display: flex; align-items: center; justify-content:space-between; gap: 6px; opacity: 0.8; font-size: 0.8rem;">
+          <span>🎙️ Voice Note</span>
+          <button style="padding:2px 6px; font-size:0.65rem; background:rgba(0,0,0,0.4); color:white;" onclick="downloadMedia('${escapedUrl}', 'voice_note.webm')">📥 Download</button>
+        </div>
+        <audio src="${url}" controls preload="metadata" style="width:100%; height:32px;"></audio>
+      </div>`;
+  }
+  return `<a href="${url}" target="_blank" style="color:var(--primary); display: block; margin-bottom: 5px;">📎 View Attachment</a>`;
+}
+
+function showAlert(msg, isError = false) {
+  const alert = document.getElementById("customAlert");
+  alert.textContent = msg;
+  alert.className = "custom-alert" + (isError ? " error" : "");
+  alert.style.display = "block";
+  setTimeout(() => alert.style.display = "none", 3000);
+}
+
+let confirmCallback = null;
+function showConfirm(msg, callback) {
+  document.getElementById("confirmMessage").textContent = msg;
+  document.getElementById("confirmModal").style.display = "flex";
+  confirmCallback = callback;
+}
+
+document.getElementById("confirmYesBtn").onclick = () => {
+  document.getElementById("confirmModal").style.display = "none";
+  if (confirmCallback) confirmCallback();
+};
+
+document.getElementById("confirmNoBtn").onclick = () => {
+  document.getElementById("confirmModal").style.display = "none";
+  confirmCallback = null;
+};
+
+let currentUser = "";
+let currentChatUser = "";
+let currentChatType = "user";
+let friendsList = [];
+let friendRequests = [];
+let blockedUsers = [];
+let blockedByUsers = [];
+let allUsersDirectory = [];
+let allGroups = [];
+let userStatuses = {};
+let allMessagesCache = [];
+let heartbeatInterval = null;
+let typingTimeout = null;
+let activeReplyTo = null;
+let activeMessagesUnsubscribe = null;
+let activeTypingUnsubscribe = null;
+let globalDirectoryUnsubscribe = null;
+let globalGroupsUnsubscribe = null;
+let globalMessagesUnsubscribe = null;
+let incomingCallUnsubscribe = null;
+
+let lastVisibleMessageDoc = null;
+let olderMessagesAvailable = true;
+let isFetchingOlderMessages = false;
+
+/* EXTRA FEATURE: In-Chat Message Filter[cite: 1] */
+const toggleFilterBtn = document.getElementById("toggleFilterBtn");
+const chatFilterContainer = document.getElementById("chatFilterContainer");
+const chatMessageFilterInput = document.getElementById("chatMessageFilterInput");
+
+toggleFilterBtn.onclick = () => {
+  if (chatFilterContainer.style.display === "block") {
+    chatFilterContainer.style.display = "none";
+    chatMessageFilterInput.value = "";
+    filterMessagesInDOM("");
+  } else {
+    chatFilterContainer.style.display = "block";
+    chatMessageFilterInput.focus();
+  }
+};
+
+chatMessageFilterInput.oninput = (e) => {
+  filterMessagesInDOM(e.target.value.toLowerCase().trim());
+};
+
+function filterMessagesInDOM(term) {
+  const bubbles = messages.getElementsByClassName("bubble");
+  Array.from(bubbles).forEach(bubble => {
+    if (!term) {
+      bubble.style.display = "flex";
+      bubble.style.flexDirection = "column";
+    } else {
+      const text = bubble.textContent.toLowerCase();
+      bubble.style.display = text.includes(term) ? "flex" : "none";
+    }
+  });
+}
+
+function updateAdminPanels() {
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  adminGroupPanel.style.display = "flex";
+  document.getElementById("ownerNameSpan").textContent = currentUser;
+  
+  const blockBtn = document.getElementById("blockUserBtn");
+
+  if (currentChatType === "group" && currentChatUser) {
+    const currentGroup = allGroups.find(g => g.id === currentChatUser);
+    const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+    
+    if (isAdmin || isCreator) {
+      adminMemberPanel.style.display = "flex";
+      adminSelectedGroupName.textContent = currentChatUser;
+      deleteGroupBtn.style.display = "inline-block";
+    } else {
+      adminMemberPanel.style.display = "none";
+      deleteGroupBtn.style.display = "none";
+    }
+    unfriendBtn.style.display = "none";
+    blockBtn.style.display = "none";
+  } else if (currentChatType === "user" && currentChatUser) {
+    adminMemberPanel.style.display = "none";
+    deleteGroupBtn.style.display = "none";
+    unfriendBtn.style.display = "inline-block";
+    blockBtn.style.display = "inline-block";
+
+    if (blockedUsers.includes(currentChatUser)) {
+      blockBtn.textContent = "Unblock";
+      blockBtn.style.background = "var(--primary)";
+      blockBtn.style.color = "black";
+    } else {
+      blockBtn.textContent = "Block";
+      blockBtn.style.background = "var(--danger)";
+      blockBtn.style.color = "white";
+    }
+  } else {
+    adminMemberPanel.style.display = "none";
+    deleteGroupBtn.style.display = "none";
+    unfriendBtn.style.display = "none";
+    blockBtn.style.display = "none";
+  }
+
+  if (currentChatUser) {
+    const isBlockedEitherWay = blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser);
+    if (isBlockedEitherWay && currentChatType === "user") {
+      voiceCallBtn.style.display = "none";
+      videoCallBtn.style.display = "none";
+    } else {
+      voiceCallBtn.style.display = "inline-block";
+      videoCallBtn.style.display = "inline-block";
+    }
+  } else {
+    voiceCallBtn.style.display = "none";
+    videoCallBtn.style.display = "none";
+  }
+}
+
+document.getElementById("authActionBtn").onclick = async () => {
+  const u = username.value.trim();
+  const p = password.value.trim();
+  if (!u || !p) return showAlert("Fill all fields", true);
+
+  const userRef = doc(db, "users", u);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    const accounts = getDeviceAccounts();
+    if (!accounts.includes(u) && accounts.length >= 3) {
+      return showAlert("Maximum limit of 3 accounts per device reached!", true);
+    }
+
+    await setDoc(userRef, {
+      password: p,
+      lastSeen: Date.now(),
+      online: true,
+      friends: ["admin"],
+      requests: [],
+      blocked: []
+    });
+    saveDeviceAccount(u);
+    currentUser = u;
+    initChatSession();
+    showAlert("Account created successfully!");
+  } else {
+    const data = userSnap.data();
+    if (data.password && data.password !== p) {
+      return showAlert("Incorrect password!", true);
+    }
+
+    const savedOk = saveDeviceAccount(u);
+    if (!savedOk) {
+      return showAlert("Maximum limit of 3 accounts per device reached on this device!", true);
+    }
+
+    currentUser = u;
+    initChatSession();
+    showAlert("Logged in successfully!");
+  }
+};
+
+document.getElementById("logoutBtn").onclick = () => {
+  showConfirm("Are you sure you want to log out of this account?", () => {
+    cleanupSessionListeners();
+    currentUser = "";
+    currentChatUser = "";
+    currentChatType = "user";
+    chatScreen.style.display = "none";
+    loginScreen.style.display = "flex";
+    initDeviceAccountsUI();
+    showAlert("Logged out successfully.");
+  });
+};
+
+function cleanupSessionListeners() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+  if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+  if (globalDirectoryUnsubscribe) { globalDirectoryUnsubscribe(); globalDirectoryUnsubscribe = null; }
+  if (globalGroupsUnsubscribe) { globalGroupsUnsubscribe(); globalGroupsUnsubscribe = null; }
+  if (globalMessagesUnsubscribe) { globalMessagesUnsubscribe(); globalMessagesUnsubscribe = null; }
+  if (incomingCallUnsubscribe) { incomingCallUnsubscribe(); incomingCallUnsubscribe = null; }
+}
+
+function initChatSession() {
+  updatePresence(true);
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => updatePresence(true), 15000);
+  window.addEventListener("beforeunload", () => updatePresence(false));
+
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+
+  loginScreen.style.display = "none";
+  chatScreen.style.display = "flex";
+  
+  updateAdminPanels();
+  loadDirectoryAndUserData();
+  listenGlobalMessages();
+  listenForIncomingCalls();
+}
+
+async function updatePresence(isOnline) {
+  if (!currentUser) return;
+  try {
+    await setDoc(doc(db, "users", currentUser), { 
+      lastSeen: Date.now(), 
+      online: isOnline 
+    }, { merge: true });
+  } catch (e) {}
+}
+
+createGroupBtn.onclick = async () => {
+  if (!checkRateLimit("createGroup", 5000)) {
+    return showAlert("You are creating groups too fast. Please wait.", true);
+  }
+
+  const groupName = newGroupName.value.trim();
+  if (!groupName) return showAlert("Enter a group name", true);
+
+  try {
+    const groupRef = doc(db, "groups", groupName);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists()) return showAlert("Group already exists", true);
+    
+    await setDoc(groupRef, {
+      createdBy: currentUser,
+      createdAt: Date.now(),
+      members: [currentUser]
+    });
+    
+    newGroupName.value = "";
+    showAlert(`Group "${groupName}" created!`);
+  } catch (err) {
+    showAlert("Failed to create group", true);
+  }
+};
+
+addMemberBtn.onclick = async () => {
+  if (!checkRateLimit("addMember", 2000)) {
+    return showAlert("Please wait before adding more members.", true);
+  }
+
+  if (currentChatType !== "group" || !currentChatUser) return showAlert("Please select a group first", true);
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+  if (!isAdmin && !isCreator) return showAlert("Only the group creator can add members!", true);
+
+  const targetUser = addMemberUsername.value.trim();
+  if (!targetUser) return showAlert("Enter a username", true);
+
+  try {
+    const userRef = doc(db, "users", targetUser);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return showAlert(`User "${targetUser}" does not exist!`, true);
+
+    const groupRef = doc(db, "groups", currentChatUser);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) return showAlert("Group not found", true);
+
+    const members = groupSnap.data().members || [];
+    if (members.includes(targetUser)) return showAlert(`"${targetUser}" is already in this group!`, true);
+
+    members.push(targetUser);
+    await updateDoc(groupRef, { members: members });
+
+    addMemberUsername.value = "";
+    showAlert(`Successfully added "${targetUser}"!`);
+  } catch (err) {
+    showAlert("Failed to add user", true);
+  }
+};
+
+deleteGroupBtn.onclick = () => {
+  if (currentChatType !== "group" || !currentChatUser) return;
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+
+  if (!isAdmin && !isCreator) {
+    return showAlert("Only the group creator can disband this group!", true);
+  }
+
+  showConfirm(`Disband group "${currentChatUser}"?`, async () => {
+    try {
+      const targetGroup = currentChatUser;
+      
+      const q = query(collection(db, "messages"), where("to", "==", targetGroup), where("isGroup", "==", true));
+      const snap = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        if (m.attachments && Array.isArray(m.attachments)) {
+          queueCloudinaryDeletion(m.attachments);
+        }
+        batch.delete(doc(db, "messages", docSnap.id));
+      });
+      batch.delete(doc(db, "groups", targetGroup));
+      await batch.commit();
+
+      if (activeMessagesUnsubscribe) {
+        activeMessagesUnsubscribe();
+        activeMessagesUnsubscribe = null;
+      }
+      if (activeTypingUnsubscribe) {
+        activeTypingUnsubscribe();
+        activeTypingUnsubscribe = null;
+      }
+
+      currentChatUser = "";
+      currentChatType = "user";
+      updateAdminPanels();
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      headerStatusText.textContent = "Select a chat";
+      showAlert("Group disbanded and all associated media/messages cleaned up.");
+    } catch (err) {
+      showAlert("Error disbanding group", true);
+    }
+  });
+};
+
+const unfriendBtn = document.getElementById("unfriendBtn");
+unfriendBtn.onclick = () => {
+  if (currentChatType !== "user" || !currentChatUser) return;
+  const targetFriend = currentChatUser;
+
+  showConfirm(`Unfriend @${targetFriend}?`, async () => {
+    try {
+      const myRef = doc(db, "users", currentUser);
+      const mySnap = await getDoc(myRef);
+      if (mySnap.exists()) {
+        let myFriends = (mySnap.data().friends || []).filter(f => f !== targetFriend);
+        await updateDoc(myRef, { friends: myFriends });
+      }
+
+      const targetRef = doc(db, "users", targetFriend);
+      const targetSnap = await getDoc(targetRef);
+      if (targetSnap.exists()) {
+        let targetFriends = (targetSnap.data().friends || []).filter(f => f !== currentUser);
+        await updateDoc(targetRef, { friends: targetFriends });
+      }
+
+      if (activeMessagesUnsubscribe) {
+        activeMessagesUnsubscribe();
+        activeMessagesUnsubscribe = null;
+      }
+      if (activeTypingUnsubscribe) {
+        activeTypingUnsubscribe();
+        activeTypingUnsubscribe = null;
+      }
+
+      currentChatUser = "";
+      currentChatType = "user";
+      updateAdminPanels();
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      headerStatusText.textContent = "Select a chat";
+      showAlert(`Unfriended @${targetFriend}`);
+    } catch (e) {
+      showAlert("Failed to unfriend user", true);
+    }
+  });
+};
+
+const blockUserBtn = document.getElementById("blockUserBtn");
+blockUserBtn.onclick = async () => {
+  if (currentChatType !== "user" || !currentChatUser) return;
+  const targetUser = currentChatUser;
+  const isCurrentlyBlocked = blockedUsers.includes(targetUser);
+
+  const actionText = isCurrentlyBlocked ? `Unblock @${targetUser}?` : `Block @${targetUser}? They won't be able to message or call you.`;
+
+  showConfirm(actionText, async () => {
+    try {
+      const myRef = doc(db, "users", currentUser);
+      const mySnap = await getDoc(myRef);
+      if (mySnap.exists()) {
+        let myBlocked = mySnap.data().blocked || [];
+        if (isCurrentlyBlocked) {
+          myBlocked = myBlocked.filter(u => u !== targetUser);
+        } else {
+          if (!myBlocked.includes(targetUser)) myBlocked.push(targetUser);
+        }
+        await updateDoc(myRef, { blocked: myBlocked });
+        showAlert(isCurrentlyBlocked ? `Unblocked @${targetUser}` : `Blocked @${targetUser}`);
+        updateAdminPanels();
+      }
+    } catch (e) {
+      showAlert("Failed to update block state", true);
+    }
+  });
+};
+
+const renameProfileBtn = document.getElementById("renameProfileBtn");
+renameProfileBtn.onclick = async () => {
+  const newName = prompt("Enter new username:", currentUser);
+  if (!newName || newName.trim() === "" || newName === currentUser) return;
+  const trimmed = newName.trim();
+
+  try {
+    const newRef = doc(db, "users", trimmed);
+    const newSnap = await getDoc(newRef);
+    if (newSnap.exists()) {
+      return showAlert("Username already taken! Please choose another.", true);
+    }
+
+    const oldRef = doc(db, "users", currentUser);
+    const oldSnap = await getDoc(oldRef);
+    const userData = oldSnap.data() || {};
+
+    await setDoc(newRef, userData);
+
+    let accounts = getDeviceAccounts();
+    if (accounts.includes(currentUser)) {
+      accounts = accounts.map(acc => acc === currentUser ? trimmed : acc);
+      localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+    }
+
+    const usersSnap = await getDocs(collection(db, "users"));
+    const groupsSnap = await getDocs(collection(db, "groups"));
+    const messagesSnap = await getDocs(collection(db, "messages"));
+
+    const updatePromises = [];
+
+    usersSnap.forEach(userDoc => {
+      if (userDoc.id === currentUser || userDoc.id === trimmed) return;
+      const uData = userDoc.data();
+      let modified = false;
+      let friends = uData.friends || [];
+      let requests = uData.requests || [];
+      let blocked = uData.blocked || [];
+
+      if (friends.includes(currentUser)) {
+        friends = friends.map(f => f === currentUser ? trimmed : f);
+        modified = true;
+      }
+      if (requests.includes(currentUser)) {
+        requests = requests.map(r => r === currentUser ? trimmed : r);
+        modified = true;
+      }
+      if (blocked.includes(currentUser)) {
+        blocked = blocked.map(b => b === currentUser ? trimmed : b);
+        modified = true;
+      }
+
+      if (modified) {
+        updatePromises.push(updateDoc(doc(db, "users", userDoc.id), {
+          friends: friends,
+          requests: requests,
+          blocked: blocked
+        }));
+      }
+    });
+
+    groupsSnap.forEach(groupDoc => {
+      const gData = groupDoc.data();
+      let gModified = false;
+      let members = gData.members || [];
+      let createdBy = gData.createdBy;
+
+      if (members.includes(currentUser)) {
+        members = members.map(m => m === currentUser ? trimmed : m);
+        gModified = true;
+      }
+      if (createdBy === currentUser) {
+        createdBy = trimmed;
+        gModified = true;
+      }
+
+      if (gModified) {
+        updatePromises.push(updateDoc(doc(db, "groups", groupDoc.id), {
+          members: members,
+          createdBy: createdBy
+        }));
+      }
+    });
+
+    messagesSnap.forEach(msgDoc => {
+      const mData = msgDoc.data();
+      let mModified = false;
+      let updatePayload = {};
+
+      if (mData.from === currentUser) {
+        updatePayload.from = trimmed;
+        mModified = true;
+      }
+      if (!mData.isGroup && mData.to === currentUser) {
+        updatePayload.to = trimmed;
+        mModified = true;
+      }
+      if (mData.replyTo && mData.replyTo.from === currentUser) {
+        updatePayload.replyTo = { ...mData.replyTo, from: trimmed };
+        mModified = true;
+      }
+
+      let seenBy = mData.seenBy || [];
+      if (seenBy.includes(currentUser)) {
+        updatePayload.seenBy = seenBy.map(s => s === currentUser ? trimmed : s);
+        mModified = true;
+      }
+
+      if (mModified) {
+        updatePromises.push(updateDoc(doc(db, "messages", msgDoc.id), updatePayload));
+      }
+    });
+
+    await Promise.all(updatePromises);
+    await deleteDoc(oldRef);
+
+    currentUser = trimmed;
+    currentChatUser = ""; 
+    currentChatType = "user";
+    messages.innerHTML = "";
+    lastVisibleMessageDoc = null;
+    olderMessagesAvailable = false;
+    updateAdminPanels();
+    renderList();
+    updateHeaderStatus();
+    initDeviceAccountsUI();
+    showAlert("Profile renamed successfully!");
+  } catch (e) {
+    showAlert("Failed to rename profile", true);
+  }
+};
+
+const deleteProfileBtn = document.getElementById("deleteProfileBtn");
+deleteProfileBtn.onclick = async () => {
+  showConfirm("Burn Profile? This will permanently delete your account, remove you from groups, and clear your records and media.", async () => {
+    try {
+      const targetUser = currentUser;
+
+      await deleteDoc(doc(db, "users", targetUser));
+      removeDeviceAccount(targetUser);
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      const groupsSnap = await getDocs(collection(db, "groups"));
+      const cleanupPromises = [];
+
+      usersSnap.forEach(userDoc => {
+        if (userDoc.id === targetUser) return;
+        const uData = userDoc.data();
+        let modified = false;
+        let friends = uData.friends || [];
+        let requests = uData.requests || [];
+        let blocked = uData.blocked || [];
+
+        if (friends.includes(targetUser)) {
+          friends = friends.filter(f => f !== targetUser);
+          modified = true;
+        }
+        if (requests.includes(targetUser)) {
+          requests = requests.filter(r => r !== targetUser);
+          modified = true;
+        }
+        if (blocked.includes(targetUser)) {
+          blocked = blocked.filter(b => b !== targetUser);
+          modified = true;
+        }
+
+        if (modified) {
+          cleanupPromises.push(updateDoc(doc(db, "users", userDoc.id), {
+            friends: friends,
+            requests: requests,
+            blocked: blocked
+          }));
+        }
+      });
+
+      groupsSnap.forEach(groupDoc => {
+        const gData = groupDoc.data();
+        let members = gData.members || [];
+        let createdBy = gData.createdBy;
+        let groupModified = false;
+
+        if (members.includes(targetUser)) {
+          members = members.filter(m => m !== targetUser);
+          groupModified = true;
+        }
+
+        if (groupModified) {
+          if (members.length === 0) {
+            cleanupPromises.push(deleteDoc(doc(db, "groups", groupDoc.id)));
+          } else {
+            if (createdBy === targetUser) {
+              createdBy = members[0];
+            }
+            cleanupPromises.push(updateDoc(doc(db, "groups", groupDoc.id), {
+              members: members,
+              createdBy: createdBy
+            }));
+          }
+        }
+      });
+
+      const q = query(collection(db, "messages"), where("from", "==", targetUser));
+      const snap = await getDocs(q);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        if (m.attachments && Array.isArray(m.attachments)) {
+          queueCloudinaryDeletion(m.attachments);
+        }
+        cleanupPromises.push(deleteDoc(doc(db, "messages", docSnap.id)));
+      });
+
+      await Promise.all(cleanupPromises);
+      cleanupSessionListeners();
+      currentUser = "";
+      currentChatUser = "";
+      currentChatType = "user";
+      chatScreen.style.display = "none";
+      loginScreen.style.display = "flex";
+      initDeviceAccountsUI();
+      showAlert("Account and associated data/media burned successfully.");
+    } catch (e) {
+      showAlert("Error burning profile", true);
+    }
+  });
+};
+
+const chatHeaderClickable = document.getElementById("chatHeaderClickable");
+const groupInfoModal = document.getElementById("groupInfoModal");
+const groupMembersList = document.getElementById("groupMembersList");
+const groupInfoTitle = document.getElementById("groupInfoTitle");
+
+chatHeaderClickable.onclick = async () => {
+  if (currentChatType === "group" && currentChatUser) {
+    groupInfoTitle.textContent = `Group: ${currentChatUser}`;
+    groupMembersList.innerHTML = "";
+    
+    try {
+      const groupRef = doc(db, "groups", currentChatUser);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const members = groupSnap.data().members || [];
+        members.forEach(m => {
+          const div = document.createElement("div");
+          div.style.cssText = "padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9rem;";
+          div.textContent = `👤 @${m}`;
+          groupMembersList.appendChild(div);
+        });
+      }
+    } catch (e) {
+      groupMembersList.innerHTML = "<div>Error loading members</div>";
+    }
+
+    groupInfoModal.style.display = "flex";
+  }
+};
+
+document.getElementById("closeGroupInfoModal").onclick = () => {
+  groupInfoModal.style.display = "none";
+};
+
+document.getElementById("renameGroupBtn").onclick = async () => {
+  if (currentChatType !== "group" || !currentChatUser) return;
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+
+  if (!isAdmin && !isCreator) {
+    return showAlert("Only the group creator can rename this group!", true);
+  }
+
+  const newName = prompt("Enter new group name:", currentChatUser);
+  if (!newName || newName.trim() === "" || newName === currentChatUser) return;
+  const trimmed = newName.trim();
+
+  try {
+    const oldGroupRef = doc(db, "groups", currentChatUser);
+    const oldGroupSnap = await getDoc(oldGroupRef);
+    if (!oldGroupSnap.exists()) return;
+
+    const groupData = oldGroupSnap.data();
+    const newGroupRef = doc(db, "groups", trimmed);
+    const newGroupSnap = await getDoc(newGroupRef);
+    if (newGroupSnap.exists()) {
+      return showAlert("Group name already taken!", true);
+    }
+
+    await setDoc(newGroupRef, groupData);
+    await deleteDoc(oldGroupRef);
+
+    const q = query(collection(db, "messages"), where("to", "==", currentChatUser), where("isGroup", "==", true));
+    const snap = await getDocs(q);
+    const updatePromises = [];
+    snap.forEach(docSnap => {
+      updatePromises.push(updateDoc(doc(db, "messages", docSnap.id), { to: trimmed }));
+    });
+    await Promise.all(updatePromises);
+
+    currentChatUser = trimmed;
+    chatTitle.textContent = trimmed;
+    groupInfoModal.style.display = "none";
+    showAlert("Group renamed successfully!");
+  } catch (e) {
+    showAlert("Failed to rename group", true);
+  }
+};
+
+const userSearchInput = document.getElementById("userSearchInput");
+const searchSuggestions = document.getElementById("searchSuggestions");
+const requestsBtn = document.getElementById("requestsBtn");
+const requestBadgeCount = document.getElementById("requestBadgeCount");
+const requestsModal = document.getElementById("requestsModal");
+const requestsList = document.getElementById("requestsList");
+
+requestsBtn.onclick = () => {
+  renderRequestsModal();
+  requestsModal.style.display = "flex";
+};
+
+document.getElementById("closeRequestsModal").onclick = () => {
+  requestsModal.style.display = "none";
+};
+
+userSearchInput.oninput = (e) => {
+  const queryText = e.target.value.trim().toLowerCase();
+  if (!queryText) {
+    searchSuggestions.style.display = "none";
+    return;
+  }
+  
+  const matches = allUsersDirectory.filter(u => u !== currentUser && u.toLowerCase().includes(queryText));
+  if (matches.length === 0) {
+    searchSuggestions.innerHTML = `<div class="suggestion-item" style="color:#aaa;">No users found</div>`;
+  } else {
+    let html = "";
+    matches.forEach(username => {
+      const isAlreadyFriend = friendsList.includes(username);
+      const isBlockedOrBlocking = blockedUsers.includes(username) || blockedByUsers.includes(username);
+      html += `
+        <div class="suggestion-item">
+          <span>👤 @${username}</span>
+          ${isBlockedOrBlocking ? '<span style="color:var(--danger); font-size:0.8rem;">Blocked</span>' : (isAlreadyFriend ? '<span style="color:var(--primary); font-size:0.8rem;">Connected</span>' : `<button style="padding:4px 10px; font-size:0.8rem;" onclick="sendFriendRequest('${username}')">Add Friend</button>`)}
+        </div>
+      `;
+    });
+    searchSuggestions.innerHTML = html;
+  }
+  searchSuggestions.style.display = "block";
+};
+
+document.addEventListener("click", (e) => {
+  if (!userSearchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+    searchSuggestions.style.display = "none";
+  }
+});
+
+window.sendFriendRequest = async (targetUser) => {
+  if (!checkRateLimit("sendFriendRequest", 3000)) {
+    return showAlert("Please wait before sending more friend requests.", true);
+  }
+
+  if (blockedUsers.includes(targetUser) || blockedByUsers.includes(targetUser)) {
+    return showAlert("Cannot send friend request to a blocked user.", true);
+  }
+
+  try {
+    const targetRef = doc(db, "users", targetUser);
+    const snap = await getDoc(targetRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const reqs = data.requests || [];
+      const targetBlocked = data.blocked || [];
+      if (targetBlocked.includes(currentUser)) {
+        return showAlert("This user has blocked you.", true);
+      }
+      if (!reqs.includes(currentUser)) {
+        reqs.push(currentUser);
+        await updateDoc(targetRef, { requests: reqs });
+        showAlert(`Friend request sent to @${targetUser}!`);
+      } else {
+        showAlert("Request already sent!");
+      }
+    }
+    searchSuggestions.style.display = "none";
+    userSearchInput.value = "";
+  } catch (err) {
+    showAlert("Failed to send request", true);
+  }
+};
+
+function renderRequestsModal() {
+  requestsList.innerHTML = "";
+  if (friendRequests.length === 0) {
+    requestsList.innerHTML = `<div style="text-align:center; color:#aaa;">No pending requests</div>`;
+    return;
+  }
+  friendRequests.forEach(fromUser => {
+    const item = document.createElement("div");
+    item.className = "request-item";
+    item.innerHTML = `
+      <span>@${fromUser}</span>
+      <div style="display:flex; gap:6px;">
+        <button style="padding:4px 10px; font-size:0.8rem;" onclick="acceptRequest('${fromUser}')">Accept</button>
+        <button style="padding:4px 10px; font-size:0.8rem; background:var(--danger); color:white;" onclick="rejectRequest('${fromUser}')">Reject</button>
+      </div>
+    `;
+    requestsList.appendChild(item);
+  });
+}
+
+window.acceptRequest = async (fromUser) => {
+  if (blockedUsers.includes(fromUser) || blockedByUsers.includes(fromUser)) {
+    return showAlert("Cannot accept requests from blocked users.", true);
+  }
+
+  try {
+    const myRef = doc(db, "users", currentUser);
+    const mySnap = await getDoc(myRef);
+    let myFriends = mySnap.data().friends || [];
+    let myReqs = mySnap.data().requests || [];
+    
+    if (!myFriends.includes(fromUser)) myFriends.push(fromUser);
+    myReqs = myReqs.filter(u => u !== fromUser);
+    await updateDoc(myRef, { friends: myFriends, requests: myReqs });
+
+    const otherRef = doc(db, "users", fromUser);
+    const otherSnap = await getDoc(otherRef);
+    if (otherSnap.exists()) {
+      let otherFriends = otherSnap.data().friends || [];
+      if (!otherFriends.includes(currentUser)) {
+        otherFriends.push(currentUser);
+        await updateDoc(otherRef, { friends: otherFriends });
+      }
+    }
+
+    showAlert(`You are now friends with @${fromUser}!`);
+    renderRequestsModal();
+  } catch (e) {
+    showAlert("Error accepting request", true);
+  }
+};
+
+window.rejectRequest = async (fromUser) => {
+  try {
+    const myRef = doc(db, "users", currentUser);
+    const mySnap = await getDoc(myRef);
+    let myReqs = (mySnap.data().requests || []).filter(u => u !== fromUser);
+    await updateDoc(myRef, { requests: myReqs });
+    showAlert("Request rejected");
+    renderRequestsModal();
+  } catch (e) {
+    showAlert("Error rejecting request", true);
+  }
+};
+
+function loadDirectoryAndUserData() {
+  globalDirectoryUnsubscribe = onSnapshot(collection(db, "users"), userSnap => {
+    allUsersDirectory = [];
+    userStatuses = {};
+    const now = Date.now();
+    userSnap.forEach(d => {
+      const data = d.data();
+      const isOnline = data.online && (now - (data.lastSeen || 0) < 35000);
+      userStatuses[d.id] = { online: isOnline, lastSeen: data.lastSeen || 0 };
+      allUsersDirectory.push(d.id);
+
+      if (d.id === currentUser) {
+        friendsList = data.friends || ["admin"];
+        friendRequests = data.requests || [];
+        blockedUsers = data.blocked || [];
+        if (friendRequests.length > 0) {
+          requestBadgeCount.style.display = "inline-block";
+          requestBadgeCount.textContent = friendRequests.length;
+        } else {
+          requestBadgeCount.style.display = "none";
+        }
+      }
+    });
+
+    blockedByUsers = [];
+    userSnap.forEach(d => {
+      const data = d.data();
+      const targetBlockedList = data.blocked || [];
+      if (targetBlockedList.includes(currentUser)) {
+        blockedByUsers.push(d.id);
+      }
+    });
+
+    renderList();
+    updateHeaderStatus();
+    updateAdminPanels();
+  });
+
+  globalGroupsUnsubscribe = onSnapshot(collection(db, "groups"), groupSnap => {
+    allGroups = [];
+    groupSnap.forEach(d => {
+      const groupData = d.data();
+      const members = groupData.members || [];
+      if (members.includes(currentUser) || groupData.createdBy === currentUser) {
+        allGroups.push({ id: d.id, type: "group", members: members, createdBy: groupData.createdBy });
+      }
+    });
+    renderList();
+  });
+}
+
+function listenGlobalMessages() {
+  globalMessagesUnsubscribe = onSnapshot(collection(db, "messages"), snap => {
+    allMessagesCache = [];
+    snap.forEach(docSnap => {
+      allMessagesCache.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    renderList();
+    if (currentChatUser) {
+      loadMessages();
+    }
+  });
+}
+
+function updateHeaderStatus() {
+  if (!currentChatUser) {
+    headerStatusText.textContent = "Select a chat";
+    headerStatusDot.className = "status-dot";
+    return;
+  }
+  
+  const isBlockedEitherWay = blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser);
+  if (isBlockedEitherWay && currentChatType === "user") {
+    headerStatusDot.className = "status-dot";
+    headerStatusText.textContent = "Blocked / Unavailable";
+    return;
+  }
+
+  if (currentChatType === "group") {
+    headerStatusDot.className = "status-dot online";
+    headerStatusText.textContent = "Group Chat (Click for info)";
+  } else {
+    const status = userStatuses[currentChatUser];
+    if (status && status.online) {
+      headerStatusDot.className = "status-dot online";
+      headerStatusText.textContent = "Online";
+    } else {
+      headerStatusDot.className = "status-dot";
+      if (status && status.lastSeen) {
+        const diffMs = Date.now() - status.lastSeen;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        let timeAgo = "";
+        if (diffDays > 0) timeAgo = `${diffDays}d ago`;
+        else if (diffHours > 0) timeAgo = `${diffHours}h ago`;
+        else if (diffMins > 0) timeAgo = `${diffMins}m ago`;
+        else timeAgo = "Just now";
+        
+        headerStatusText.textContent = `Last seen ${timeAgo}`;
+      } else {
+        headerStatusText.textContent = "Offline";
+      }
+    }
+  }
+}
+
+function renderList() {
+  userList.innerHTML = "";
+  
+  allGroups.forEach(g => {
+    let unreadCount = 0;
+    allMessagesCache.forEach(m => {
+      if (m.isGroup && m.to === g.id && m.from !== currentUser) {
+        const seenBy = m.seenBy || [];
+        if (!seenBy.includes(currentUser)) unreadCount++;
+      }
+    });
+
+    const chip = document.createElement("div");
+    chip.className = "user-chip" + (currentChatUser === g.id && currentChatType === "group" ? " active" : "");
+    let badgeHtml = unreadCount > 0 ? `<span class="unread-arrow-badge">↙ ${unreadCount}</span>` : "";
+    chip.innerHTML = `👥 #${g.id} ${badgeHtml}`;
+    chip.onclick = () => {
+      if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+      if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+      currentChatUser = g.id;
+      currentChatType = "group";
+      chatTitle.textContent = `#${g.id}`;
+      updateAdminPanels();
+      renderList(); 
+      updateHeaderStatus();
+      loadMessages();
+      listenTypingStatus();
+    };
+    userList.appendChild(chip);
+  });
+
+  friendsList.forEach(friendId => {
+    if (friendId === currentUser) return;
+    const status = userStatuses[friendId] || { online: false };
+    
+    let unreadCount = 0;
+    allMessagesCache.forEach(m => {
+      if (!m.isGroup && m.from === friendId && m.to === currentUser) {
+        const seenBy = m.seenBy || [];
+        if (!seenBy.includes(currentUser)) unreadCount++;
+      }
+    });
+
+    const chip = document.createElement("div");
+    chip.className = "user-chip" + (currentChatUser === friendId && currentChatType === "user" ? " active" : "");
+    let badgeHtml = unreadCount > 0 ? `<span class="unread-arrow-badge">↙ ${unreadCount}</span>` : "";
+    chip.innerHTML = `<span class="chip-dot ${status.online ? 'online' : ''}"></span> @${friendId} ${badgeHtml}`;
+    chip.onclick = () => {
+      if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+      if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+      currentChatUser = friendId;
+      currentChatType = "user";
+      chatTitle.textContent = `@${friendId}`;
+      updateAdminPanels();
+      renderList(); 
+      updateHeaderStatus();
+      loadMessages();
+      listenTypingStatus();
+    };
+    userList.appendChild(chip);
+  });
+}
+
+const messageInput = document.getElementById("messageInput");
+
+messageInput.onkeydown = (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendBtn.click();
+  }
+};
+
+messageInput.oninput = async () => {
+  if (!currentChatUser || !currentUser) return;
+  const typingRef = doc(db, "typing", `${currentUser}_${currentChatUser}`);
+  await setDoc(typingRef, { isTyping: true, time: Date.now() }, { merge: true });
+
+  if (typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(async () => {
+    await setDoc(typingRef, { isTyping: false, time: Date.now() }, { merge: true });
+  }, 1500);
+};
+
+function listenTypingStatus() {
+  if (!currentChatUser) return;
+  if (activeTypingUnsubscribe) {
+    activeTypingUnsubscribe();
+    activeTypingUnsubscribe = null;
+  }
+
+  if (currentChatType === "group") {
+    const typingQuery = query(collection(db, "typing"));
+    activeTypingUnsubscribe = onSnapshot(typingQuery, snap => {
+      let typingNames = [];
+      const now = Date.now();
+      snap.forEach(d => {
+        const parts = d.id.split("_");
+        if (parts.length === 2) {
+          const fromUser = parts[0];
+          const toTarget = parts[1];
+          if (toTarget === currentChatUser && fromUser !== currentUser && d.data().isTyping && (now - d.data().time < 3000)) {
+            typingNames.push(fromUser);
+          }
+        }
+      });
+      if (typingNames.length > 0) {
+        headerStatusText.textContent = `${typingNames.join(", ")} typing...`;
+      } else {
+        updateHeaderStatus();
+      }
+    });
+  } else {
+    const typingRef = doc(db, "typing", `${currentChatUser}_${currentUser}`);
+    activeTypingUnsubscribe = onSnapshot(typingRef, snap => {
+      if (snap.exists() && snap.data().isTyping && (Date.now() - snap.data().time < 3000)) {
+        headerStatusText.textContent = "typing...";
+      } else {
+        updateHeaderStatus();
+      }
+    });
+  }
+}
+
+const emojiToggleBtn = document.getElementById("emojiToggleBtn");
+const emojiTray = document.getElementById("emojiTray");
+
+emojiToggleBtn.onclick = (e) => {
+  e.stopPropagation();
+  emojiTray.style.display = emojiTray.style.display === "grid" ? "none" : "grid";
+};
+
+document.body.onclick = () => {
+  emojiTray.style.display = "none";
+};
+
+window.insertEmoji = (emoji) => {
+  messageInput.value += emoji;
+  emojiTray.style.display = "none";
+  messageInput.focus();
+};
+
+const attachBtn = document.getElementById("attachBtn");
+const fileInput = document.getElementById("fileInput");
+attachBtn.onclick = () => fileInput.click();
+
+let mediaRecorder = null;
+let audioChunks = [];
+let recordedAudioBlob = null;
+const recordVoiceBtn = document.getElementById("recordVoiceBtn");
+let isRecording = false;
+
+function stopMediaTracks(stream) {
+  if (!stream) return;
+  try {
+    stream.getTracks().forEach(track => track.stop());
+  } catch (err) {}
+}
+
+recordVoiceBtn.onclick = async () => {
+  if (!checkRateLimit("recordVoice", 2000)) {
+    return showAlert("Please wait before recording another voice note.", true);
+  }
+
+  if (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser)) {
+    return showAlert("Cannot send voice notes to a blocked user.", true);
+  }
+
+  if (!isRecording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        stopMediaTracks(stream);
+        if (recordedAudioBlob && currentChatUser) await sendAudioMessage(recordedAudioBlob);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      recordVoiceBtn.classList.add("recording");
+      showAlert("Recording voice note...");
+    } catch (err) {
+      showAlert("Microphone unavailable", true);
+    }
+  } else {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    isRecording = false;
+    recordVoiceBtn.classList.remove("recording");
+  }
+};
+
+async function sendAudioMessage(blob) {
+  if (!currentChatUser) return;
+  try {
+    const audioFile = new File([blob], "voice_note.webm", { type: "audio/webm" });
+    const uploadedAsset = await validateAndUploadFile(audioFile);
+
+    await addDoc(collection(db, "messages"), {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: "",
+      attachments: [uploadedAsset],
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: null
+    });
+  } catch (err) {
+    showAlert(err.message || "Failed to send voice note", true);
+  }
+}
+
+const replyPreviewBar = document.getElementById("replyPreviewBar");
+const replyPreviewText = document.getElementById("replyPreviewText");
+document.getElementById("cancelReplyBtn").onclick = () => {
+  activeReplyTo = null;
+  replyPreviewBar.style.display = "none";
+};
+
+const sendBtn = document.getElementById("sendBtn");
+sendBtn.onclick = async () => {
+  if (!checkRateLimit("sendMessage", 1000)) {
+    return showAlert("You are sending messages too fast. Please slow down.", true);
+  }
+
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot send messages to or from a blocked user.", true);
+  }
+
+  const text = messageInput.value.trim();
+  const files = fileInput.files;
+
+  if (!currentChatUser) {
+    return showAlert("Please select a user or group to chat with first!", true);
+  }
+
+  if (!text && files.length === 0) {
+    return showAlert("Cannot send an empty message", true);
+  }
+
+  if (files.length > MAX_FILES_PER_MESSAGE) {
+    return showAlert(`Maximum ${MAX_FILES_PER_MESSAGE} attachments allowed per message.`, true);
+  }
+
+  sendBtn.disabled = true;
+  const originalText = sendBtn.textContent;
+  sendBtn.textContent = "...";
+
+  try {
+    const typingRef = doc(db, "typing", `${currentUser}_${currentChatUser}`);
+    await setDoc(typingRef, { isTyping: false, time: Date.now() }, { merge: true });
+
+    let attachments = [];
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const uploadedAsset = await validateAndUploadFile(files[i]);
+        attachments.push(uploadedAsset);
+      }
+    }
+
+    let sanitizedReplyTo = null;
+    if (activeReplyTo) {
+      sanitizedReplyTo = {
+        id: activeReplyTo.id,
+        text: activeReplyTo.text,
+        from: activeReplyTo.from
+      };
+    }
+
+    await addDoc(collection(db, "messages"), {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: text,
+      attachments: attachments,
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: sanitizedReplyTo
+    });
+
+    messageInput.value = "";
+    fileInput.value = "";
+    activeReplyTo = null;
+    replyPreviewBar.style.display = "none";
+  } catch (err) {
+    showAlert(err.message || "Failed to send message", true);
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = originalText;
+  }
+};
+
+const deleteChatBtn = document.getElementById("deleteChatBtn");
+deleteChatBtn.onclick = async () => {
+  if (!currentChatUser) return;
+  showConfirm(`Clear chat with ${currentChatUser}?`, async () => {
+    try {
+      let q;
+      if (currentChatType === "group") {
+        q = query(collection(db, "messages"), where("to", "==", currentChatUser), where("isGroup", "==", true));
+      } else {
+        q = query(collection(db, "messages"));
+      }
+      const snap = await getDocs(q);
+      const batch = writeBatch(db);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        let matches = false;
+        if (currentChatType === "group") {
+          matches = m.isGroup === true && m.to === currentChatUser;
+        } else {
+          matches = !m.isGroup && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+        }
+
+        if (matches) {
+          if (m.attachments && Array.isArray(m.attachments)) {
+            queueCloudinaryDeletion(m.attachments);
+          }
+          batch.delete(doc(db, "messages", docSnap.id));
+        }
+      });
+      await batch.commit();
+
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      showAlert("Chat cleared and all associated media/messages cleaned up.");
+    } catch (e) {
+      showAlert("Error clearing chat", true);
+    }
+  });
+};
+
+window.unsendMessage = async (docId) => {
+  showConfirm("Unsend this message?", async () => {
+    try {
+      const msgRef = doc(db, "messages", docId);
+      const msgSnap = await getDoc(msgRef);
+      if (msgSnap.exists()) {
+        const mData = msgSnap.data();
+        if (mData.from !== currentUser && currentUser.toLowerCase() !== "admin") {
+          return showAlert("Unauthorized: You can only unsend your own messages.", true);
+        }
+        if (mData.attachments && Array.isArray(mData.attachments)) {
+          await queueCloudinaryDeletion(mData.attachments);
+        }
+      }
+      await deleteDoc(msgRef);
+      showAlert("Message unsent and media cleaned up.");
+    } catch (e) {
+      showAlert("Failed to unsend message", true);
+    }
+  });
+};
+
+window.editMessage = async (docId, currentText) => {
+  const newText = prompt("Edit message:", currentText);
+  if (newText === null || newText.trim() === "") return;
+  try {
+    const msgRef = doc(db, "messages", docId);
+    const msgSnap = await getDoc(msgRef);
+    if (msgSnap.exists() && msgSnap.data().from !== currentUser) {
+      return showAlert("Unauthorized: You can only edit your own messages.", true);
+    }
+    await updateDoc(msgRef, {
+      text: newText.trim(),
+      edited: true
+    });
+    showAlert("Message updated");
+  } catch (e) {
+    showAlert("Failed to update message", true);
+  }
+};
+
+/* FEATURE 4: Rich Markdown Text Formatting Parser[cite: 1] */
+function parseMarkdown(text) {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  
+  // *bold* -> <strong>
+  escaped = escaped.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+  // _italic_ -> <em>
+  escaped = escaped.replace(/_(.*?)_/g, '<em>$1</em>');
+  // ~strikethrough~ -> <del>
+  escaped = escaped.replace(/~(.*?)~/g, '<del>$1</del>');
+  // `code` -> <code>
+  escaped = escaped.replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.4); padding:2px 6px; border-radius:4px; font-family:monospace; color:#a3f1c0;">$1</code>');
+  
+  return escaped;
+}
+
+/* FEATURE 5: One-Tap Text Copying Helper[cite: 1] */
+window.copyMessageText = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    showAlert("Copied to clipboard!");
+  }).catch(() => {
+    showAlert("Failed to copy", true);
+  });
+};
+
+let lastNotifiedMsgId = "";
+
+function loadMessages() {
+  if (!currentChatUser) return;
+  if (activeMessagesUnsubscribe) {
+    activeMessagesUnsubscribe();
+    activeMessagesUnsubscribe = null;
+  }
+
+  messages.innerHTML = "";
+  lastVisibleMessageDoc = null;
+  olderMessagesAvailable = true;
+
+  let messagesQuery;
+  if (currentChatType === "group") {
+    messagesQuery = query(
+      collection(db, "messages"),
+      where("isGroup", "==", true),
+      where("to", "==", currentChatUser),
+      orderBy("time", "desc"),
+      limit(35)
+    );
+  } else {
+    messagesQuery = query(
+      collection(db, "messages"),
+      where("isGroup", "==", false),
+      orderBy("time", "desc"),
+      limit(100)
+    );
+  }
+
+  activeMessagesUnsubscribe = onSnapshot(messagesQuery, async snap => {
+    let unreadDocsToMark = [];
+    const messageMap = {};
+    const matchedDocs = [];
+
+    snap.docs.forEach(docSnap => {
+      const m = docSnap.data();
+      messageMap[docSnap.id] = m;
+      let isMatch = false;
+
+      if (currentChatType === "group") {
+        isMatch = m.isGroup === true && m.to === currentChatUser;
+      } else {
+        isMatch = m.isGroup === false && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+      }
+
+      if (isMatch) {
+        matchedDocs.push({ id: docSnap.id, ...m });
+      }
+    });
+
+    if (snap.docs.length > 0) {
+      lastVisibleMessageDoc = snap.docs[snap.docs.length - 1];
+    }
+    if (snap.docs.length < 35) {
+      olderMessagesAvailable = false;
+    }
+
+    matchedDocs.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+    messages.innerHTML = "";
+    matchedDocs.forEach(m => {
+      const docId = m.id;
+      let seenBy = m.seenBy || [];
+      if (m.from !== currentUser && !seenBy.includes(currentUser)) {
+        unreadDocsToMark.push(docId);
+        if (docId !== lastNotifiedMsgId && "Notification" in window && Notification.permission === "granted") {
+          lastNotifiedMsgId = docId;
+          try {
+            new Notification(`New message from @${m.from}`, { body: m.text || "Sent an attachment" });
+          } catch (e) {}
+        }
+      }
+
+      const div = document.createElement("div");
+      div.className = "bubble " + (m.from === currentUser ? "sent" : "received");
+      
+      let lastClick = 0;
+      div.onclick = async (e) => {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastClick;
+        if (tapLength < 300 && tapLength > 0) {
+          e.stopPropagation();
+          const reactions = m.reactions || {};
+          reactions[currentUser] = "❤️";
+          await updateDoc(doc(db, "messages", docId), { reactions: reactions });
+        } else {
+          let replyTextSummary = m.text || "";
+          if (!replyTextSummary && m.attachments && m.attachments.length > 0) {
+            const firstType = m.attachments[0].type || "";
+            if (firstType.startsWith("image/")) replyTextSummary = "[Image]";
+            else if (firstType.startsWith("video/")) replyTextSummary = "[Video]";
+            else if (firstType.startsWith("audio/")) replyTextSummary = "[Voice Note]";
+            else replyTextSummary = "[Attachment]";
+          }
+          activeReplyTo = { id: docId, text: replyTextSummary || "Attachment", from: m.from };
+          replyPreviewText.textContent = `Replying to @${m.from}: ${activeReplyTo.text}`;
+          replyPreviewBar.style.display = "flex";
+          messageInput.focus();
+        }
+        lastClick = currentTime;
+      };
+
+      let attachmentsHTML = "";
+      if (m.attachments && Array.isArray(m.attachments)) {
+        m.attachments.forEach(file => { attachmentsHTML += renderFile(file.url, file.type); });
+      }
+
+      let replyQuoteHTML = "";
+      if (m.replyTo && messageMap[m.replyTo.id]) {
+        replyQuoteHTML = `<div class="reply-quote"><strong>@${m.replyTo.from}</strong>: ${m.replyTo.text}</div>`;
+      } else if (m.replyTo && !messageMap[m.replyTo.id]) {
+        replyQuoteHTML = `<div class="reply-quote"><strong>@${m.replyTo.from}</strong>: Original message removed</div>`;
+      }
+
+      const senderLabel = (currentChatType === "group" && m.from !== currentUser) 
+        ? `<div style="font-size:0.75rem; color:var(--primary); font-weight:bold; margin-bottom: 2px;">@${m.from}</div>` 
+        : "";
+
+      let reactionsHTML = "";
+      if (m.reactions && Object.keys(m.reactions).length > 0) {
+        let badges = "";
+        Object.values(m.reactions).forEach(emoji => { badges += emoji; });
+        reactionsHTML = `<div class="reactions-container"><span class="reaction-badge">${badges}</span></div>`;
+      }
+
+      let seenIndicator = "";
+      let editUnsendActions = "";
+      let copyActionBtn = "";
+
+      if (m.text) {
+        const escapedTextForCopy = m.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        copyActionBtn = `<button class="msg-action-link" onclick="event.stopPropagation(); copyMessageText('${escapedTextForCopy}')">Copy</button>`;
+      }
+
+      if (m.from === currentUser) {
+        const isSeen = currentChatType === "group" ? (seenBy.length > 1) : seenBy.includes(currentChatUser);
+        seenIndicator = `<span class="seen-status">${isSeen ? '✓✓ Seen' : '✓ Sent'}</span>`;
+        
+        const escapedText = (m.text || "").replace(/'/g, "\\'");
+        editUnsendActions = `
+          <span class="msg-actions-inline">
+            ${copyActionBtn}
+            ${m.text ? `<button class="msg-action-link" onclick="event.stopPropagation(); editMessage('${docId}', '${escapedText}')">Edit</button>` : ""}
+            <button class="msg-action-link danger" onclick="event.stopPropagation(); unsendMessage('${docId}')">Unsend</button>
+          </span>
+        `;
+      } else if (m.text) {
+        editUnsendActions = `<span class="msg-actions-inline">${copyActionBtn}</span>`;
+      }
+
+      const editedTag = m.edited ? `<span style="font-size:0.65rem; opacity:0.6; font-style:italic;">(edited)</span>` : "";
+      const parsedText = parseMarkdown(m.text);
+
+      div.innerHTML = `
+        ${senderLabel}
+        ${replyQuoteHTML}
+        ${m.text ? `<div>${parsedText} ${editedTag}</div>` : ""}
+        ${attachmentsHTML}
+        ${reactionsHTML}
+        <div class="meta">
+          <span>${new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          ${seenIndicator}
+          ${editUnsendActions}
+        </div>
+      `;
+      messages.appendChild(div);
+    });
+
+    if (chatMessageFilterInput.value.trim()) {
+      filterMessagesInDOM(chatMessageFilterInput.value.trim().toLowerCase());
+    }
+
+    messages.scrollTop = messages.scrollHeight;
+
+    if (unreadDocsToMark.length > 0) {
+      for (let docId of unreadDocsToMark) {
+        try {
+          const msgRef = doc(db, "messages", docId);
+          const msgSnap = await getDoc(msgRef);
+          if (msgSnap.exists()) {
+            let currentSeen = msgSnap.data().seenBy || [];
+            if (!currentSeen.includes(currentUser)) {
+              currentSeen.push(currentUser);
+              await updateDoc(msgRef, { seenBy: currentSeen });
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  });
+}
+
+messages.onscroll = async () => {
+  if (messages.scrollTop === 0 && olderMessagesAvailable && !isFetchingOlderMessages && lastVisibleMessageDoc) {
+    isFetchingOlderMessages = true;
+    const oldScrollHeight = messages.scrollHeight;
+
+    try {
+      let olderQuery;
+      if (currentChatType === "group") {
+        olderQuery = query(
+          collection(db, "messages"),
+          where("isGroup", "==", true),
+          where("to", "==", currentChatUser),
+          orderBy("time", "desc"),
+          startAfter(lastVisibleMessageDoc),
+          limit(25)
+        );
+      } else {
+        olderQuery = query(
+          collection(db, "messages"),
+          where("isGroup", "==", false),
+          orderBy("time", "desc"),
+          startAfter(lastVisibleMessageDoc),
+          limit(25)
+        );
+      }
+
+      const snapshot = await getDocs(olderQuery);
+      if (snapshot.docs.length > 0) {
+        lastVisibleMessageDoc = snapshot.docs[snapshot.docs.length - 1];
+        const olderDocs = [];
+        snapshot.docs.forEach(docSnap => {
+          const m = docSnap.data();
+          let isMatch = false;
+          if (currentChatType === "group") {
+            isMatch = m.isGroup === true && m.to === currentChatUser;
+          } else {
+            isMatch = m.isGroup === false && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+          }
+          if (isMatch) olderDocs.push({ id: docSnap.id, ...m });
+        });
+
+        olderDocs.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+        const fragment = document.createDocumentFragment();
+        olderDocs.forEach(m => {
+          const docId = m.id;
+          const div = document.createElement("div");
+          div.className = "bubble " + (m.from === currentUser ? "sent" : "received");
+          
+          let attachmentsHTML = "";
+          if (m.attachments && Array.isArray(m.attachments)) {
+            m.attachments.forEach(file => { attachmentsHTML += renderFile(file.url, file.type); });
+          }
+
+          let seenIndicator = "";
+          if (m.from === currentUser) {
+            const seenBy = m.seenBy || [];
+            const isSeen = currentChatType === "group" ? (seenBy.length > 1) : seenBy.includes(currentChatUser);
+            seenIndicator = `<span class="seen-status">${isSeen ? '✓✓ Seen' : '✓ Sent'}</span>`;
+          }
+
+          const parsedText = parseMarkdown(m.text);
+
+          div.innerHTML = `
+            ${m.text ? `<div>${parsedText}</div>` : ""}
+            ${attachmentsHTML}
+            <div class="meta">
+              <span>${new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              ${seenIndicator}
+            </div>
+          `;
+          fragment.appendChild(div);
+        });
+
+        messages.insertBefore(fragment, messages.firstChild);
+        messages.scrollTop = messages.scrollHeight - oldScrollHeight;
+      } else {
+        olderMessagesAvailable = false;
+      }
+    } catch (e) {
+    } finally {
+      isFetchingOlderMessages = false;
+    }
+  }
+};
+
+let localStream = null;
+let peerConnections = {};
+let remoteStreams = {};
+let activeCallId = null;
+let isVideoCall = false;
+let callDocUnsubscribe = null;
+
+const servers = { iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] };
+
+const callModal = document.getElementById("callModal");
+const callTitle = document.getElementById("callTitle");
+const callStatusText = document.getElementById("callStatusText");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const videoGridContainer = document.getElementById("videoGridContainer");
+const acceptCallBtn = document.getElementById("acceptCallBtn");
+const toggleMicBtn = document.getElementById("toggleMicBtn");
+const toggleCamBtn = document.getElementById("toggleCamBtn");
+const endCallBtn = document.getElementById("endCallBtn");
+
+voiceCallBtn.onclick = () => startCall(false);
+videoCallBtn.onclick = () => startCall(true);
+
+/* FEATURE 2: In-Call Controls (Mute Mic & Camera Toggle)[cite: 1] */
+let isAudioMuted = false;
+let isVideoOff = false;
+
+toggleMicBtn.onclick = () => {
+  if (!localStream) return;
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (audioTrack) {
+    isAudioMuted = !isAudioMuted;
+    audioTrack.enabled = !isAudioMuted;
+    toggleMicBtn.textContent = isAudioMuted ? "Unmute Mic" : "Mute Mic";
+    toggleMicBtn.style.background = isAudioMuted ? "var(--danger)" : "var(--glass)";
+  }
+};
+
+toggleCamBtn.onclick = () => {
+  if (!localStream) return;
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (videoTrack) {
+    isVideoOff = !isVideoOff;
+    videoTrack.enabled = !isVideoOff;
+    toggleCamBtn.textContent = isVideoOff ? "Cam On" : "Cam Off";
+    toggleCamBtn.style.background = isVideoOff ? "var(--danger)" : "var(--glass)";
+  }
+};
+
+async function startCall(video) {
+  if (!checkRateLimit("startCall", 5000)) {
+    return showAlert("Please wait before starting another call.", true);
+  }
+
+  if (!currentChatUser) return;
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot initiate calls with a blocked user.", true);
+  }
+
+  isVideoCall = video;
+  callModal.style.display = "flex";
+  callTitle.textContent = `Calling ${currentChatUser}...`;
+  callStatusText.textContent = "Initializing media...";
+  acceptCallBtn.style.display = "none";
+  toggleMicBtn.style.display = "inline-block";
+  toggleCamBtn.style.display = isVideoCall ? "inline-block" : "none";
+  isAudioMuted = false;
+  isVideoOff = false;
+  toggleMicBtn.textContent = "Mute Mic";
+  toggleMicBtn.style.background = "var(--glass)";
+  toggleCamBtn.textContent = "Cam Off";
+  toggleCamBtn.style.background = "var(--glass)";
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoCall });
+    localVideo.srcObject = localStream;
+    if (isVideoCall) localVideo.classList.add("active"); else localVideo.classList.remove("active");
+
+    const callRef = doc(collection(db, "calls"));
+    activeCallId = callRef.id;
+
+    await setDoc(callRef, {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      isVideo: isVideoCall,
+      status: "ringing",
+      participants: [currentUser],
+      time: Date.now()
+    });
+    callStatusText.textContent = "Ringing...";
+
+    if (currentChatType === "user") {
+      const pc = createPeerConnection(currentChatUser);
+      pc.onicecandidate = e => { if (e.candidate) addDoc(collection(db, "calls", activeCallId, `candidates_${currentUser}_${currentChatUser}`), e.candidate.toJSON()); };
+
+      const offerDescription = await pc.createOffer();
+      await pc.setLocalDescription(offerDescription);
+      await updateDoc(callRef, { [`offers.${currentUser}`]: { type: offerDescription.type, sdp: offerDescription.sdp } });
+
+      onSnapshot(callRef, snapshot => {
+        const data = snapshot.data();
+        if (data && data.answers && data.answers[currentChatUser] && !pc.currentRemoteDescription) {
+          pc.setRemoteDescription(new RTCSessionDescription(data.answers[currentChatUser]));
+          callStatusText.textContent = "Connected";
+        }
+        if (!snapshot.exists() || (data && data.status === "ended")) {
+          showAlert("Call end");
+          hangUpCall(false);
+        }
+        if (data && data.status === "rejected") {
+          showAlert("Call rejected", true);
+          hangUpCall(false);
+        }
+      });
+
+      onSnapshot(collection(db, "calls", activeCallId, `candidates_${currentChatUser}_${currentUser}`), snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+        });
+      });
+    }
+  } catch (err) {
+    showAlert("Media access failed", true);
+    hangUpCall(true);
+  }
+}
+
+function listenForIncomingCalls() {
+  if (incomingCallUnsubscribe) { incomingCallUnsubscribe(); incomingCallUnsubscribe = null; }
+  incomingCallUnsubscribe = onSnapshot(query(collection(db, "calls"), where("status", "==", "ringing")), snapshot => {
+    snapshot.docChanges().forEach(async change => {
+      if (change.type === "added") {
+        const callData = change.doc.data();
+        const isGroupCall = callData.isGroup === true;
+        const isForMe = isGroupCall ? (allGroups.some(g => g.id === callData.to && g.members.includes(currentUser))) : (callData.to === currentUser);
+
+        if (isForMe && callData.from !== currentUser && !activeCallId) {
+          if (blockedUsers.includes(callData.from) || blockedByUsers.includes(callData.from)) {
+            return;
+          }
+
+          activeCallId = change.doc.id;
+          isVideoCall = callData.isVideo;
+
+          callModal.style.display = "flex";
+          callTitle.textContent = `Incoming ${isVideoCall ? 'Video' : 'Voice'} Call from @${callData.from}`;
+          callStatusText.textContent = "Ringing...";
+          acceptCallBtn.style.display = "inline-block";
+          toggleMicBtn.style.display = "none";
+          toggleCamBtn.style.display = "none";
+
+          acceptCallBtn.onclick = async () => {
+            acceptCallBtn.style.display = "none";
+            toggleMicBtn.style.display = "inline-block";
+            toggleCamBtn.style.display = isVideoCall ? "inline-block" : "none";
+            isAudioMuted = false;
+            isVideoOff = false;
+            toggleMicBtn.textContent = "Mute Mic";
+            toggleMicBtn.style.background = "var(--glass)";
+            toggleCamBtn.textContent = "Cam Off";
+            toggleCamBtn.style.background = "var(--glass)";
+            callStatusText.textContent = "Connecting...";
+
+            try {
+              localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoCall });
+              localVideo.srcObject = localStream;
+              if (isVideoCall) localVideo.classList.add("active"); else localVideo.classList.remove("active");
+
+              const callRef = doc(db, "calls", activeCallId);
+              const callSnap = await getDoc(callRef);
+              const data = callSnap.data();
+
+              let parts = data.participants || [];
+              if (!parts.includes(currentUser)) parts.push(currentUser);
+              await updateDoc(callRef, { participants: parts, status: "answered" });
+
+              const caller = data.from;
+              const pc = createPeerConnection(caller);
+              pc.onicecandidate = e => { if (e.candidate) addDoc(collection(db, "calls", activeCallId, `candidates_${currentUser}_${caller}`), e.candidate.toJSON()); };
+
+              await pc.setRemoteDescription(new RTCSessionDescription({ type: data.offers[caller].type, sdp: data.offers[caller].sdp }));
+              const answerDescription = await pc.createAnswer();
+              await pc.setLocalDescription(answerDescription);
+
+              await updateDoc(callRef, { [`answers.${currentUser}`]: { type: answerDescription.type, sdp: answerDescription.sdp } });
+
+              onSnapshot(collection(db, "calls", activeCallId, `candidates_${caller}_${currentUser}`), snapshot => {
+                snapshot.docChanges().forEach(change => {
+                  if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                });
+              });
+
+              callStatusText.textContent = "Connected";
+
+              if (callDocUnsubscribe) callDocUnsubscribe();
+              callDocUnsubscribe = onSnapshot(callRef, snap => {
+                if (!snap.exists() || snap.data().status === "ended") {
+                  showAlert("Call end");
+                  hangUpCall(false);
+                }
+                if (snap.exists() && snap.data().status === "rejected") {
+                  showAlert("Call rejected", true);
+                  hangUpCall(false);
+                }
+              });
+            } catch (e) {
+              showAlert("Failed to accept call", true);
+              hangUpCall(true);
+            }
+          };
+        }
+      }
+    });
+  });
+}
+
+function createPeerConnection(remoteUser) {
+  const pc = new RTCPeerConnection(servers);
+  peerConnections[remoteUser] = pc;
+
+  const remoteStream = new MediaStream();
+  remoteStreams[remoteUser] = remoteStream;
+
+  let targetVideoEl = remoteVideo;
+  if (Object.keys(peerConnections).length > 1) {
+    targetVideoEl = document.createElement("video");
+    targetVideoEl.autoplay = true;
+    targetVideoEl.playsInline = true;
+    targetVideoEl.className = "active";
+    targetVideoEl.style.cssText = "width:100%; height:100%; object-fit:cover; background:#111; border-radius:8px;";
+    videoGridContainer.appendChild(targetVideoEl);
+  }
+  targetVideoEl.srcObject = remoteStream;
+  targetVideoEl.classList.add("active");
+
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  pc.ontrack = event => { event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track)); };
+  return pc;
+}
+
+endCallBtn.onclick = () => hangUpCall(true);
+
+async function hangUpCall(updateFirestore) {
+  if (activeCallId && updateFirestore) {
+    try {
+      const callDocRef = doc(db, "calls", activeCallId);
+      const snap = await getDoc(callDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const finalStatus = (data.status === "ringing" && data.from !== currentUser) ? "rejected" : "ended";
+        await updateDoc(callDocRef, { status: finalStatus });
+        showAlert(finalStatus === "rejected" ? "Call rejected" : "Call end");
+        setTimeout(async () => {
+          try { await deleteDoc(callDocRef); } catch(e){}
+        }, 1000);
+      }
+    } catch (e) {}
+  }
+  if (localStream) { stopMediaTracks(localStream); localStream = null; }
+  
+  Object.values(peerConnections).forEach(pc => pc.close());
+  peerConnections = {};
+  remoteStreams = {};
+
+  if (callDocUnsubscribe) { callDocUnsubscribe(); callDocUnsubscribe = null; }
+
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+  localVideo.classList.remove("active");
+  remoteVideo.classList.remove("active");
+
+  const extraVideos = videoGridContainer.querySelectorAll("video:not(#remoteVideo):not(#localVideo)");
+  extraVideos.forEach(v => v.remove());
+
+  callModal.style.display = "none";
+  activeCallId = null;
+  toggleMicBtn.style.display = "none";
+  toggleCamBtn.style.display = "none";
+}
+
+let scene, camera, renderer, particles;
+function init3D() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.getElementById("canvas-container").appendChild(renderer.domElement);
+
+  const geo = new THREE.BufferGeometry();
+  const count = 1500;
+  const pos = new Float32Array(count * 3);
+  for(let i=0; i<count*3; i++) pos[i] = (Math.random() - 0.5) * 10;
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  
+  const mat = new THREE.PointsMaterial({ color: 0x25d366, size: 0.02, transparent: true, opacity: 0.5 });
+  particles = new THREE.Points(geo, mat);
+  scene.add(particles);
+  camera.position.z = 2;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  particles.rotation.y += 0.001;
+  particles.rotation.x += 0.0005;
+  renderer.render(scene, camera);
+}
+
+window.onload = () => {
+  init3D();
+  animate();
+};
+
+window.onresize = () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+};
+</script>
+
+</body>
+</html>
