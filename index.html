@@ -1,0 +1,3408 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Z-Chat</title>
+
+<style>
+:root {
+  --primary: #25d366;
+  --bg-dark: #0b141a;
+  --panel: rgba(32, 44, 51, 0.94);
+  --sent: #005c4b;
+  --received: #202c33;
+  --glass: rgba(255, 255, 255, 0.07);
+  --danger: #ff4d4d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg-dark);
+  color: white;
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(37, 211, 102, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+#canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+.app { position: relative; height: 100vh; height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1; padding: 12px; }
+
+/* Modern Glassmorphic UI & Neon Green Glow Borders */
+.card, #chatScreen, .call-card, .requests-card {
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 2rem;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.15), 0 12px 40px rgba(0,0,0,0.5);
+}
+
+.card { width: 100%; max-width: 400px; }
+
+#chatScreen { display: none; width: 100%; max-width: 900px; height: 96vh; height: 96dvh; border-radius: 18px; flex-direction: column; overflow: hidden; box-shadow: 0 0 25px rgba(37, 211, 102, 0.2), 0 14px 50px rgba(0,0,0,0.7); }
+
+.header { padding: 12px 18px; background: rgba(0,0,0,0.4); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--glass); }
+.header-info { display: flex; flex-direction: column; cursor: pointer; }
+.header-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-btns button { background: none; border: 1px solid var(--glass); color: #ccc; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; transition: 0.2s; }
+.header-btns button:hover { color: white; background: var(--glass); border-color: var(--primary); }
+
+.status-indicator { font-size: 0.75rem; color: #aaa; display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #777; }
+.status-dot.online { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+/* Top Action Bar for Clean Header Integration */
+.top-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.icon-action-btn {
+  background: var(--glass);
+  border: 1px solid var(--glass);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: 0.2s;
+}
+.icon-action-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--primary); }
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 40px;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--glass);
+  border-radius: 12px;
+  min-width: 160px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  backdrop-filter: blur(18px);
+  z-index: 500;
+  overflow: hidden;
+}
+
+.dropdown-menu.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-item {
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 100%;
+  border-bottom: 1px solid var(--glass);
+  transition: background 0.2s;
+}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:hover { background: rgba(255,255,255,0.1); }
+.dropdown-item.danger { color: var(--danger); }
+
+/* Modals */
+.confirm-modal, .call-modal, .requests-modal, .info-modal, .media-modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+}
+
+.media-modal {
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 3000;
+  flex-direction: column;
+}
+
+.media-modal-content {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.media-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 25px;
+  background: var(--glass);
+  color: white;
+  border: 1px solid var(--glass);
+  font-size: 1.2rem;
+  padding: 8px 14px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.call-card {
+  padding: 2rem;
+  border-radius: 20px;
+  text-align: center;
+  width: 100%;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+  max-height: 320px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.video-grid video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+  display: none;
+}
+.video-grid video.active { display: block; }
+
+/* Control Panels */
+#adminGroupPanel, #adminMemberPanel {
+  display: none;
+  padding: 10px 18px;
+  background: rgba(37, 211, 102, 0.08);
+  border-bottom: 1px solid rgba(37, 211, 102, 0.15);
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#adminMemberPanel { background: rgba(37, 211, 102, 0.04); }
+#adminGroupPanel input, #adminMemberPanel input {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+/* Search Bar & Requests */
+.search-bar-container { padding: 12px 18px; background: rgba(0,0,0,0.25); display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--glass); position: relative; }
+.search-bar-container input { flex: 1; padding: 9px 14px; font-size: 0.9rem; }
+.requests-badge-btn { position: relative; background: var(--glass); border: 1px solid var(--glass); color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+.badge-count { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 50%; display: none; }
+
+.chat-filter-container { padding: 6px 18px; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--glass); display: none; }
+.chat-filter-container input { width: 100%; padding: 6px 10px; font-size: 0.8rem; }
+
+#userList { display: flex; padding: 10px 18px; gap: 10px; overflow-x: auto; border-bottom: 1px solid var(--glass); background: rgba(0,0,0,0.15); flex-shrink: 0; }
+.user-chip { position: relative; padding: 8px 16px; background: var(--glass); border-radius: 20px; cursor: pointer; white-space: nowrap; transition: 0.3s; border: 1px solid transparent; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.user-chip.active { background: var(--primary); color: black; font-weight: bold; border-color: var(--primary); box-shadow: 0 0 10px rgba(37, 211, 102, 0.4); }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #777; }
+.chip-dot.online { background: #00ff66; }
+
+.unread-arrow-badge {
+  background: var(--danger);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+
+/* Suggestions Dropdown */
+#searchSuggestions { display: none; position: absolute; top: 65px; left: 18px; right: 18px; background: var(--panel); border: 1px solid var(--glass); border-radius: 10px; z-index: 100; max-height: 220px; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.6); backdrop-filter: blur(18px); }
+.suggestion-item { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass); font-size: 0.9rem; }
+.suggestion-item:hover { background: rgba(255,255,255,0.08); }
+
+#messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Micro-animations for message entry */
+@keyframes bubbleEntry {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px; position: relative; font-size: 0.95rem; line-height: 1.4; word-break: break-word; user-select: none; cursor: pointer; animation: bubbleEntry 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.bubble.sent { align-self: flex-end; background: var(--sent); border-bottom-right-radius: 2px; border: 1px solid rgba(37, 211, 102, 0.2); }
+.bubble.received { align-self: flex-start; background: var(--received); border-bottom-left-radius: 2px; }
+.bubble img, .bubble video { border-radius: 8px; margin-top: 5px; display: block; border: 1px solid rgba(255,255,255,0.1); width: 220px; height: 160px; object-fit: cover; cursor: pointer; transition: transform 0.2s; }
+.bubble img:hover, .bubble video:hover { opacity: 0.9; }
+.bubble audio { margin-top: 5px; width: 100%; min-width: 220px; }
+.meta { font-size: 0.7rem; opacity: 0.65; text-align: right; margin-top: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.seen-status { font-weight: bold; color: #4dc3ff; }
+
+.msg-actions-inline { display: inline-flex; gap: 6px; margin-left: 6px; font-size: 0.7rem; }
+.msg-action-link { color: #a3f1c0; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; font-size: 0.7rem; }
+.msg-action-link.danger { color: #ff8080; }
+
+.reply-quote { background: rgba(0,0,0,0.3); border-left: 3px solid var(--primary); padding: 5px 10px; border-radius: 4px; font-size: 0.85rem; margin-bottom: 6px; opacity: 0.9; }
+.reply-preview-bar { display: none; padding: 8px 16px; background: rgba(0,0,0,0.4); border-top: 1px solid var(--glass); align-items: center; justify-content: space-between; font-size: 0.85rem; }
+
+.reactions-container { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.reaction-badge { background: rgba(0,0,0,0.45); border: 1px solid var(--glass); border-radius: 12px; padding: 2px 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 3px; }
+
+#emojiTray { display: none; position: absolute; bottom: 75px; left: 18px; background: var(--panel); border: 1px solid var(--glass); padding: 12px; border-radius: 14px; backdrop-filter: blur(18px); grid-template-columns: repeat(6, 1fr); gap: 8px; z-index: 10; box-shadow: 0 6px 25px rgba(0,0,0,0.7); }
+ 
+/* ===== PRO Panels: Full Emoji Picker / Stickers / GIFs ===== */
+.pro-panel { display: none; position: absolute; bottom: 75px; left: 18px; right: 18px; max-width: 420px; height: 360px; background: var(--panel); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 12; box-shadow: 0 10px 35px rgba(0,0,0,0.75); flex-direction: column; overflow: hidden; }
+.pro-panel.open { display: flex; }
+.pro-panel-search { padding: 10px; border-bottom: 1px solid var(--glass); flex-shrink: 0; }
+.pro-panel-search input { width: 100%; margin: 0; padding: 8px 12px; font-size: 0.85rem; background: rgba(0,0,0,0.3); border: 1px solid var(--glass); border-radius: 10px; color: white; }
+.pro-tabs { display: flex; gap: 4px; padding: 8px 10px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid var(--glass); }
+.pro-tab-btn { background: var(--glass); border: 1px solid transparent; color: #ccc; padding: 5px 10px; border-radius: 20px; cursor: pointer; font-size: 0.78rem; white-space: nowrap; flex-shrink: 0; }
+.pro-tab-btn.active { background: rgba(37, 211, 102, 0.18); border-color: var(--primary); color: var(--primary); font-weight: bold; }
+.pro-panel-body { flex: 1; overflow-y: auto; padding: 10px; }
+.pro-emoji-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.pro-emoji-cell { background: none; border: none; font-size: 1.35rem; padding: 5px; border-radius: 8px; cursor: pointer; line-height: 1; }
+.pro-emoji-cell:hover { background: var(--glass); }
+.pro-sticker-grid, .pro-gif-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pro-sticker-cell { background: rgba(255,255,255,0.04); border: 1px solid var(--glass); border-radius: 12px; cursor: pointer; font-size: 2.4rem; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
+.pro-sticker-cell:hover { border-color: var(--primary); background: rgba(37, 211, 102, 0.08); }
+.pro-gif-cell { background: rgba(255,255,255,0.04); border: 1px solid var(--glass); border-radius: 10px; cursor: pointer; padding: 0; overflow: hidden; aspect-ratio: 1; }
+.pro-gif-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pro-panel-empty { color: #888; font-size: 0.8rem; text-align: center; padding: 30px 10px; grid-column: 1 / -1; }
+.pro-panel-loading { color: var(--primary); font-size: 0.8rem; text-align: center; padding: 30px 10px; grid-column: 1 / -1; }
+ 
+/* Sticker message bubbles: large, transparent, no bubble chrome */
+.bubble.sticker-bubble { background: none !important; border: none !important; box-shadow: none !important; padding: 2px 4px !important; }
+.sticker-message-emoji { font-size: 4.5rem; line-height: 1; display: block; }
+ 
+/* Polls */
+.poll-container { background: rgba(0,0,0,0.25); border: 1px solid var(--glass); border-radius: 12px; padding: 12px; margin-top: 4px; min-width: 220px; }
+.poll-question { font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+.poll-option { position: relative; background: rgba(255,255,255,0.05); border: 1px solid var(--glass); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; overflow: hidden; font-size: 0.82rem; }
+.poll-option:last-child { margin-bottom: 0; }
+.poll-option-fill { position: absolute; top: 0; left: 0; bottom: 0; background: rgba(37, 211, 102, 0.22); z-index: 0; transition: width 0.3s ease; }
+.poll-option-content { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8px; }
+.poll-option.voted-by-me { border-color: var(--primary); }
+.poll-meta { font-size: 0.68rem; color: #999; margin-top: 6px; }
+ 
+/* Pinned messages bar */
+.pinned-bar { display: none; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; background: rgba(37, 211, 102, 0.08); border-bottom: 1px solid var(--glass); font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
+.pinned-bar.show { display: flex; }
+.pinned-bar-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.bubble.is-pinned { border: 1px solid rgba(37, 211, 102, 0.5) !important; }
+.pin-flag { font-size: 0.7rem; margin-right: 3px; }
+ 
+/* Disappearing messages */
+.disappear-menu-row { padding: 8px 14px; font-size: 0.78rem; color: #ccc; border-bottom: 1px solid var(--glass); }
+.disappear-option-btn { background: var(--glass); border: 1px solid transparent; color: #ddd; padding: 4px 9px; border-radius: 14px; font-size: 0.7rem; cursor: pointer; margin: 3px 4px 0 0; }
+.disappear-option-btn.active { background: rgba(37, 211, 102, 0.2); border-color: var(--primary); color: var(--primary); }
+.disappear-chip { font-size: 0.7rem; color: var(--primary); background: rgba(37,211,102,0.12); padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+ 
+/* Poll creation modal */
+.poll-create-option-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+.poll-create-option-row input { flex: 1; margin: 0; }
+.poll-remove-opt { background: var(--glass); color: var(--danger); border: none; border-radius: 6px; padding: 6px 9px; cursor: pointer; flex-shrink: 0; }
+.emoji-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 4px; border-radius: 6px; }
+.emoji-btn:hover { background: var(--glass); }
+
+.inputBar { padding: 12px 18px; background: rgba(0,0,0,0.4); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; border-top: 1px solid rgba(37, 211, 102, 0.2); }
+input { background: rgba(0,0,0,0.35); border: 1px solid var(--glass); color: white; padding: 10px 12px; border-radius: 8px; outline: none; font-size: 0.95rem; transition: border-color 0.2s; }
+input:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(37, 211, 102, 0.25); }
+#messageInput { flex: 1; min-width: 140px; }
+
+.media-actions { display: flex; gap: 6px; align-items: center; }
+.action-btn { background: var(--glass); border: 1px solid var(--glass); color: white; padding: 10px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+.action-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--primary); }
+.action-btn.recording { background: var(--danger); animation: pulse 1.2s infinite; }
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+button { background: var(--primary); border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; color: #000; transition: transform 0.1s, box-shadow 0.2s; }
+button:hover { box-shadow: 0 0 10px rgba(37, 211, 102, 0.5); }
+button:active { transform: scale(0.97); }
+
+.input-group { display: flex; flex-direction: column; gap: 12px; }
+
+.custom-alert { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; background: var(--primary); color: black; font-weight: bold; z-index: 3000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center; max-width: 90%; }
+.custom-alert.error { background: var(--danger); color: white; }
+
+.requests-card { background: var(--panel); padding: 1.5rem; border-radius: 16px; width: 100%; max-width: 360px; border: 1px solid var(--glass); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+.request-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--glass); font-size: 0.9rem; }
+
+.device-accounts-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+.device-account-chip { display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 8px 12px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: 0.2s; }
+.device-account-chip:hover { border-color: var(--primary); }
+
+@media (max-width: 600px) {
+  .app { padding: 0; justify-content: flex-start; }
+  #chatScreen { width: 100%; height: 100vh; height: 100dvh; border-radius: 0; border: none; margin: 0; }
+  .card { width: 92%; padding: 1.5rem; }
+  .inputBar { padding: 8px 12px; }
+  .header-btns button, .icon-action-btn { padding: 5px 8px; font-size: 0.75rem; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="canvas-container"></div>
+<div id="customAlert" class="custom-alert"></div>
+
+<div id="mediaModal" class="media-modal">
+  <button class="media-modal-close" id="mediaModalCloseBtn">✕</button>
+  <div id="mediaModalContainer" style="display:flex; align-items:center; justify-content:center; width:100%; height:100%;"></div>
+</div>
+
+<div id="confirmModal" class="confirm-modal">
+  <div class="card" style="text-align: center; max-width: 320px;">
+    <h3 style="margin-top: 0; color: var(--danger);">Confirm Action</h3>
+    <p id="confirmMessage" style="font-size: 0.95rem; line-height: 1.4; color: #eee; margin-bottom: 20px;"></p>
+    <div style="display: flex; gap: 10px; justify-content: center;">
+      <button id="confirmYesBtn" style="background: var(--danger); color: white; flex: 1;">Yes</button>
+      <button id="confirmNoBtn" style="background: var(--glass); color: white; flex: 1;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="requestsModal" class="requests-modal">
+  <div class="requests-card">
+    <h3 style="margin-top:0; color:var(--primary)">Friend Requests</h3>
+    <div id="requestsList" style="display:flex; flex-direction:column; gap:10px; margin: 15px 0;"></div>
+    <button id="closeRequestsModal" style="width:100%; background:var(--glass); color:white;">Close</button>
+  </div>
+</div>
+
+<div id="groupInfoModal" class="info-modal">
+  <div class="requests-card">
+    <h3 id="groupInfoTitle" style="margin-top:0; color:var(--primary)">Group Members</h3>
+    <div id="groupMembersList" style="display:flex; flex-direction:column; gap:8px; margin: 15px 0; max-height:220px; overflow-y:auto;"></div>
+    <div style="display:flex; gap:8px;">
+      <button id="renameGroupBtn" style="flex:1; background:var(--glass); color:white; font-size:0.85rem; display:none;">Rename Group</button>
+      <button id="closeGroupInfoModal" style="flex:1; background:var(--primary); color:black; font-size:0.85rem;">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="pollCreateModal" class="requests-modal">
+  <div class="requests-card">
+    <h3 style="margin-top:0; color:var(--primary)">📊 Create Poll</h3>
+    <input id="pollQuestionInput" placeholder="Ask a question..." style="margin-bottom:10px;">
+    <div id="pollOptionsContainer"></div>
+    <button id="pollAddOptionBtn" style="width:100%; background:var(--glass); color:white; font-size:0.8rem; margin: 4px 0 14px;">+ Add Option</button>
+    <div style="display:flex; gap:8px;">
+      <button id="pollCancelBtn" style="flex:1; background:var(--glass); color:white; font-size:0.85rem;">Cancel</button>
+      <button id="pollSubmitBtn" style="flex:1; background:var(--primary); color:black; font-size:0.85rem;">Send Poll</button>
+    </div>
+  </div>
+</div>
+ 
+<div id="pinnedListModal" class="info-modal">
+  <div class="requests-card">
+    <h3 style="margin-top:0; color:var(--primary)">📌 Pinned Messages</h3>
+    <div id="pinnedListContainer" style="display:flex; flex-direction:column; gap:8px; margin: 15px 0; max-height:320px; overflow-y:auto;"></div>
+    <button id="closePinnedListModal" style="width:100%; background:var(--primary); color:black; font-size:0.85rem;">Close</button>
+  </div>
+</div>
+ 
+<div id="disappearModal" class="info-modal">
+  <div class="requests-card">
+    <h3 style="margin-top:0; color:var(--primary)">⏱ Disappearing Messages</h3>
+    <p style="font-size:0.8rem; color:#aaa; margin-top:0;">New messages sent in this chat will auto-delete after the selected time.</p>
+    <div id="disappearOptionsContainer" style="margin: 12px 0;"></div>
+    <button id="closeDisappearModal" style="width:100%; background:var(--glass); color:white; font-size:0.85rem;">Close</button>
+  </div>
+</div>
+ 
+<div id="callModal" class="call-modal">
+  <div class="call-card">
+    <h3 id="callTitle" style="margin: 0; color: var(--primary);">Incoming Call</h3>
+    <p id="callStatusText" style="margin: 0; font-size: 0.9rem; color: #ccc;">Connecting...</p>
+    <div class="video-grid" id="videoGridContainer">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay playsinline muted style="width: 100px; height: 75px; position: absolute; bottom: 10px; right: 10px; border-radius: 6px; border: 1px solid #fff;"></video>
+    </div>
+    <div style="display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap;" id="callActionButtons">
+      <button id="acceptCallBtn" style="background: var(--primary); display: none; flex: 1;">Accept</button>
+      <button id="toggleMicBtn" style="background: var(--glass); color: white; flex: 1; display: none;">Mute Mic</button>
+      <button id="toggleCamBtn" style="background: var(--glass); color: white; flex: 1; display: none;">Cam Off</button>
+      <button id="endCallBtn" style="background: var(--danger); color: white; flex: 1;">End Call</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <div id="loginScreen">
+    <div class="card">
+      <h2 style="margin-top:0; color:var(--primary); text-align:center;">Z-Chat</h2>
+      
+      <div id="deviceAccountSection" style="display:none; margin-bottom: 15px;">
+        <div style="font-size:0.8rem; color:#aaa; margin-bottom:6px;">Accounts on this device (<span id="deviceCountLabel">0</span>/3):</div>
+        <div id="deviceAccountsList" class="device-accounts-list"></div>
+        <button id="addNewAccountBtn" style="width:100%; background:var(--glass); color:white; font-size:0.85rem; margin-bottom:10px; display:none;">+ Add Another Account</button>
+      </div>
+
+      <div id="authFormContainer">
+        <div class="input-group">
+          <input id="username" placeholder="Username">
+          <input id="password" type="password" placeholder="Password">
+        </div>
+        <button id="authActionBtn" style="width:100%; margin-top:12px;">Log In</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chatScreen" style="position:relative;">
+    <div class="header">
+      <div class="header-info" id="chatHeaderClickable" title="Click for info / rename">
+        <div id="ownerDisplayLabel" style="font-size: 0.75rem; color: var(--primary); font-weight: bold;">Owner: <span id="ownerNameSpan"></span></div>
+        <div id="chatTitle" style="font-weight:bold; font-size:1.1rem;">Z-Chat Direct</div>
+        <div class="status-indicator" id="chatStatusIndicator">
+          <span class="status-dot" id="headerStatusDot"></span>
+          <span id="headerStatusText">Select a chat</span>
+        </div>
+      </div>
+      
+      <!-- Upgraded Header Buttons using Settings, Chats, Profiles dropdown/top controls -->
+      <div class="header-btns">
+        <button id="voiceCallBtn" title="Voice Call" style="display:none;">📞 Call</button>
+        <button id="videoCallBtn" title="Video Call" style="display:none;">📹 Video</button>
+        <button id="toggleFilterBtn" title="Search Chat Messages" style="background: var(--glass); color: white;">🔍 Chat Filter</button>
+        
+        <!-- Settings Dropdown Container -->
+        <div class="top-action-bar">
+          <button id="settingsMenuBtn" class="icon-action-btn" title="Settings">⚙️ Settings</button>
+          <div id="settingsDropdown" class="dropdown-menu">
+            <button id="blockUserBtn" class="dropdown-item" style="display: none;">Block User</button>
+            <button id="deleteGroupBtn" class="dropdown-item danger" style="display: none;">Disband Group</button>
+            <button id="unfriendBtn" class="dropdown-item danger" style="display: none;">Unfriend</button>
+            <button id="disappearMenuBtn" class="dropdown-item">⏱ Disappearing Messages</button>
+            <button id="deleteChatBtn" class="dropdown-item">Clear Chat</button>
+          </div>
+        </div>
+
+        <!-- Profiles Dropdown Container -->
+        <div class="top-action-bar">
+          <button id="profileMenuBtn" class="icon-action-btn" title="Profile Options">👤 Profile</button>
+          <div id="profileDropdown" class="dropdown-menu">
+            <button id="renameProfileBtn" class="dropdown-item">Rename Profile</button>
+            <button id="logoutBtn" class="dropdown-item">Log Out</button>
+            <button id="deleteProfileBtn" class="dropdown-item danger">Delete Account</button>
+          </div>
+        </div>
+
+        <!-- Three Dots Chats Options Dropdown Container -->
+        <div class="top-action-bar">
+          <button id="threeDotsMenuBtn" class="icon-action-btn" title="Chat Actions">⋮</button>
+          <div id="threeDotsDropdown" class="dropdown-menu">
+            <button id="chatActionInfo" class="dropdown-item" onclick="document.getElementById('chatHeaderClickable').click()">View Details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-Chat Message Search Filter Bar -->
+    <div id="chatFilterContainer" class="chat-filter-container">
+      <input id="chatMessageFilterInput" placeholder="⚡ Search inside current chat window...">
+    </div>
+
+    <!-- Pinned Messages Bar -->
+    <div id="pinnedBar" class="pinned-bar">
+      <span class="pinned-bar-text"><span class="pin-flag">📌</span><span id="pinnedBarText">0 pinned messages</span></span>
+      <span style="font-size:0.7rem; color:#aaa;">View ›</span>
+    </div>
+
+    <div id="adminGroupPanel" style="display: flex;">
+      <input id="newGroupName" placeholder="New Group Name...">
+      <button id="createGroupBtn">Create Group</button>
+    </div>
+
+    <div id="adminMemberPanel">
+      <span id="memberPanelLabel" style="font-size: 0.8rem; color: #aaa; white-space: nowrap;">Add to <strong id="adminSelectedGroupName" style="color:var(--primary)">Group</strong>:</span>
+      <input id="addMemberUsername" placeholder="Username...">
+      <button id="addMemberBtn">Add</button>
+    </div>
+
+    <div class="search-bar-container">
+      <input id="userSearchInput" placeholder="🔍 Search usernames to add...">
+      <button id="requestsBtn" class="requests-badge-btn">Requests <span id="requestBadgeCount" class="badge-count">0</span></button>
+      <div id="searchSuggestions"></div>
+    </div>
+
+    <div id="userList"></div>
+    <div id="messages"></div>
+
+    <div id="replyPreviewBar" class="reply-preview-bar">
+      <span id="replyPreviewText">Replying to message...</span>
+      <button id="cancelReplyBtn" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 1rem;">✕</button>
+    </div>
+
+    <div class="inputBar">
+      <div id="emojiTray">
+        <button class="emoji-btn" onclick="insertEmoji('😊')">😊</button>
+        <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+        <button class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+        <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+        <button class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
+        <button class="emoji-btn" onclick="insertEmoji('✨')">✨</button>
+        <button class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
+        <button class="emoji-btn" onclick="insertEmoji('🚀')">🚀</button>
+        <button class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
+        <button class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
+        <button class="emoji-btn" onclick="insertEmoji('💬')">💬</button>
+        <button class="emoji-btn" onclick="insertEmoji('💯')">💯</button>
+      </div>
+
+      <!-- PRO: Full Emoji Picker (categories + search) -->
+      <div id="fullEmojiPicker" class="pro-panel">
+        <div class="pro-panel-search"><input id="emojiSearchInput" placeholder="🔍 Search emojis..."></div>
+        <div class="pro-tabs" id="emojiCategoryTabs"></div>
+        <div class="pro-panel-body"><div class="pro-emoji-grid" id="emojiPickerGrid"></div></div>
+      </div>
+
+      <!-- PRO: Sticker Packs -->
+      <div id="stickerPicker" class="pro-panel">
+        <div class="pro-tabs" id="stickerPackTabs"></div>
+        <div class="pro-panel-body"><div class="pro-sticker-grid" id="stickerPickerGrid"></div></div>
+      </div>
+
+      <!-- PRO: GIF Picker (Giphy) -->
+      <div id="gifPicker" class="pro-panel">
+        <div class="pro-panel-search"><input id="gifSearchInput" placeholder="🔍 Search GIFs on Giphy..."></div>
+        <div class="pro-panel-body"><div class="pro-gif-grid" id="gifPickerGrid"></div></div>
+      </div>
+
+      <div class="media-actions">
+        <button class="action-btn" id="emojiToggleBtn" title="Emojis">😊</button>
+        <button class="action-btn" id="fullEmojiBtn" title="More Emojis">🙂+</button>
+        <button class="action-btn" id="stickerToggleBtn" title="Stickers">🏷️</button>
+        <button class="action-btn" id="gifToggleBtn" title="GIFs">🎬</button>
+        <button class="action-btn" id="pollToggleBtn" title="Create Poll">📊</button>
+        <button class="action-btn" id="attachBtn" title="Attach Files">📎</button>
+        <input type="file" id="fileInput" accept="image/*,video/*,audio/*" multiple style="display:none;">
+        <button class="action-btn" id="recordVoiceBtn" title="Hold or Tap to Record Voice">🎤</button>
+      </div>
+      <input id="messageInput" placeholder="Write a message...">
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc, where, limit, startAfter, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSy...", 
+  authDomain: "nexon-p2p.firebaseapp.com",
+  projectId: "nexon-p2p",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const CLOUD_NAME = "dju4t3pwa";
+const UPLOAD_PRESET = "SOCIAL";
+
+// Reserved compulsory AI assistant contact - available to every user, no friend request needed
+const AI_USERNAME = "AI";
+const AI_ENDPOINT = "https://api.llm7.io/v1/chat/completions";
+const AI_IMAGE_ENDPOINT = "https://image.pollinations.ai/prompt/";
+
+let DEVICE_ID = "";
+async function getSecureDeviceFingerprint() {
+  const nav = window.navigator;
+  const sc = window.screen;
+  const rawProps = [
+    nav.userAgent,
+    nav.language,
+    nav.hardwareConcurrency || 'unknown',
+    nav.deviceMemory || 'unknown',
+    sc.width,
+    sc.height,
+    sc.colorDepth,
+    new Date().getTimezoneOffset()
+  ].join('|||');
+
+  const msgBuffer = new TextEncoder().encode(rawProps);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+getSecureDeviceFingerprint().then(id => {
+  DEVICE_ID = id;
+  initDeviceAccountsUI();
+});
+
+function getDeviceAccounts() {
+  try {
+    const data = localStorage.getItem(`zchat_device_accounts_${DEVICE_ID}`);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveDeviceAccount(username) {
+  let accounts = getDeviceAccounts();
+  if (!accounts.includes(username)) {
+    if (accounts.length >= 3) return false;
+    accounts.push(username);
+    localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+  }
+  return true;
+}
+
+function removeDeviceAccount(username) {
+  let accounts = getDeviceAccounts();
+  accounts = accounts.filter(acc => acc !== username);
+  localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+}
+
+function initDeviceAccountsUI() {
+  const accounts = getDeviceAccounts();
+  const section = document.getElementById("deviceAccountSection");
+  const listContainer = document.getElementById("deviceAccountsList");
+  const countLabel = document.getElementById("deviceCountLabel");
+  const addBtn = document.getElementById("addNewAccountBtn");
+  const authForm = document.getElementById("authFormContainer");
+  const usernameInput = document.getElementById("username");
+
+  countLabel.textContent = accounts.length;
+  listContainer.innerHTML = "";
+
+  if (accounts.length > 0) {
+    section.style.display = "block";
+    accounts.forEach(acc => {
+      const chip = document.createElement("div");
+      chip.className = "device-account-chip";
+      chip.innerHTML = `
+        <span style="font-weight:bold; color:var(--primary);">@${acc}</span>
+        <button style="padding:4px 10px; font-size:0.75rem;" onclick="switchDeviceAccount('${acc}')">Log In</button>
+      `;
+      listContainer.appendChild(chip);
+    });
+
+    if (accounts.length < 3) {
+      addBtn.style.display = "block";
+      usernameInput.style.display = "block";
+    } else {
+      addBtn.style.display = "none";
+      usernameInput.style.display = "none";
+    }
+    authForm.style.display = "block";
+  } else {
+    section.style.display = "none";
+    usernameInput.style.display = "block";
+    authForm.style.display = "block";
+  }
+}
+
+window.switchDeviceAccount = (usernameVal) => {
+  document.getElementById("username").value = usernameVal;
+  document.getElementById("password").value = "";
+  document.getElementById("password").focus();
+};
+
+document.getElementById("addNewAccountBtn").onclick = () => {
+  document.getElementById("authFormContainer").style.display = "block";
+  document.getElementById("username").style.display = "block";
+  document.getElementById("username").value = "";
+  document.getElementById("password").value = "";
+  document.getElementById("username").focus();
+};
+
+const rateLimits = {};
+function checkRateLimit(actionKey, limitMs) {
+  const now = Date.now();
+  if (rateLimits[actionKey] && now - rateLimits[actionKey] < limitMs) {
+    return false;
+  }
+  rateLimits[actionKey] = now;
+  return true;
+}
+
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "audio/webm", "audio/mp3", "audio/wav", "audio/ogg"];
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const MAX_FILES_PER_MESSAGE = 5;
+
+async function validateAndUploadFile(file) {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("File size exceeds the 15MB limit.");
+  }
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type or format not supported.");
+  }
+  return await uploadToCloudinary(file);
+}
+
+async function uploadToCloudinary(file) {
+  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", UPLOAD_PRESET);
+
+  const res = await fetch(url, { method: "POST", body: formData });
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  
+  return { 
+    url: data.secure_url, 
+    public_id: data.public_id || extractPublicIdFromUrl(data.secure_url), 
+    type: file.type 
+  };
+}
+
+function extractPublicIdFromUrl(secureUrl) {
+  try {
+    const parts = secureUrl.split('/');
+    const filenameWithExt = parts[parts.length - 1];
+    const filename = filenameWithExt.substring(0, filenameWithExt.lastIndexOf('.'));
+    const folderIndex = parts.indexOf('upload');
+    if (folderIndex !== -1 && parts.length > folderIndex + 2) {
+      const folderPath = parts.slice(folderIndex + 2, parts.length - 1).join('/');
+      return folderPath ? `${folderPath}/${filename}` : filename;
+    }
+    return filename;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function queueCloudinaryDeletion(attachments) {
+  if (!attachments || !Array.isArray(attachments)) return;
+  for (const att of attachments) {
+    if (att.public_id || att.url) {
+      try {
+        await addDoc(collection(db, "cloudinary_queue"), {
+          public_id: att.public_id || extractPublicIdFromUrl(att.url),
+          url: att.url,
+          status: "pending",
+          time: Date.now()
+        });
+      } catch (e) {}
+    }
+  }
+}
+
+const mediaModal = document.getElementById("mediaModal");
+const mediaModalContainer = document.getElementById("mediaModalContainer");
+document.getElementById("mediaModalCloseBtn").onclick = () => {
+  mediaModal.style.display = "none";
+  mediaModalContainer.innerHTML = "";
+};
+
+window.openMediaModal = (url, type) => {
+  mediaModalContainer.innerHTML = "";
+  if (type && type.startsWith("image/")) {
+    mediaModalContainer.innerHTML = `<img src="${url}" class="media-modal-content">`;
+  } else if (type && type.startsWith("video/")) {
+    mediaModalContainer.innerHTML = `<video src="${url}" controls autoplay class="media-modal-content"></video>`;
+  }
+  mediaModal.style.display = "flex";
+};
+
+window.downloadMedia = async (url, filename) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (e) {
+    showAlert("Failed to download file", true);
+  }
+};
+
+function renderFile(url, type) {
+  if (!url) return "";
+  const escapedUrl = url.replace(/'/g, "\\'");
+  const escapedType = (type || "").replace(/'/g, "\\'");
+  if (type && type.startsWith("image/")) {
+    return `
+      <div style="position:relative; display:inline-block; margin-bottom:5px;">
+        <img src="${url}" loading="lazy" onclick="openMediaModal('${escapedUrl}', '${escapedType}')">
+        <button style="position:absolute; bottom:8px; right:8px; padding:4px 8px; font-size:0.7rem; background:rgba(0,0,0,0.7); color:white; border-radius:4px;" onclick="event.stopPropagation(); downloadMedia('${escapedUrl}', 'image.jpg')">📥 Download</button>
+      </div>`;
+  }
+  if (type && type.startsWith("video/")) {
+    return `
+      <div style="position:relative; display:inline-block; margin-bottom:5px;">
+        <video src="${url}" controls preload="metadata" onclick="openMediaModal('${escapedUrl}', '${escapedType}')"></video>
+        <button style="position:absolute; bottom:8px; right:8px; padding:4px 8px; font-size:0.7rem; background:rgba(0,0,0,0.7); color:white; border-radius:4px;" onclick="event.stopPropagation(); downloadMedia('${escapedUrl}', 'video.mp4')">📥 Download</button>
+      </div>`;
+  }
+  if (type && type.startsWith("audio/")) {
+    return `
+      <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px;">
+        <div style="display: flex; align-items: center; justify-content:space-between; gap: 6px; opacity: 0.8; font-size: 0.8rem;">
+          <span>🎙️ Voice Note</span>
+          <button style="padding:2px 6px; font-size:0.65rem; background:rgba(0,0,0,0.4); color:white;" onclick="downloadMedia('${escapedUrl}', 'voice_note.webm')">📥 Download</button>
+        </div>
+        <audio src="${url}" controls preload="metadata" style="width:100%; height:32px;"></audio>
+      </div>`;
+  }
+  return `<a href="${url}" target="_blank" style="color:var(--primary); display: block; margin-bottom: 5px;">📎 View Attachment</a>`;
+}
+
+function showAlert(msg, isError = false) {
+  const alert = document.getElementById("customAlert");
+  alert.textContent = msg;
+  alert.className = "custom-alert" + (isError ? " error" : "");
+  alert.style.display = "block";
+  setTimeout(() => alert.style.display = "none", 3000);
+}
+
+let confirmCallback = null;
+function showConfirm(msg, callback) {
+  document.getElementById("confirmMessage").textContent = msg;
+  document.getElementById("confirmModal").style.display = "flex";
+  confirmCallback = callback;
+}
+
+document.getElementById("confirmYesBtn").onclick = () => {
+  document.getElementById("confirmModal").style.display = "none";
+  if (confirmCallback) confirmCallback();
+};
+
+document.getElementById("confirmNoBtn").onclick = () => {
+  document.getElementById("confirmModal").style.display = "none";
+  confirmCallback = null;
+};
+
+let currentUser = "";
+let currentChatUser = "";
+let currentChatType = "user";
+let friendsList = [];
+let friendRequests = [];
+let blockedUsers = [];
+let blockedByUsers = [];
+let allUsersDirectory = [];
+let allGroups = [];
+let userStatuses = {};
+let allMessagesCache = [];
+let heartbeatInterval = null;
+let typingTimeout = null;
+let activeReplyTo = null;
+let activeMessagesUnsubscribe = null;
+let activeTypingUnsubscribe = null;
+let globalDirectoryUnsubscribe = null;
+let globalGroupsUnsubscribe = null;
+let globalMessagesUnsubscribe = null;
+let incomingCallUnsubscribe = null;
+
+let lastVisibleMessageDoc = null;
+let olderMessagesAvailable = true;
+let isFetchingOlderMessages = false;
+
+// Dropdown menus toggle logic for settings, profile, and three dots
+const settingsMenuBtn = document.getElementById("settingsMenuBtn");
+const settingsDropdown = document.getElementById("settingsDropdown");
+
+const profileMenuBtn = document.getElementById("profileMenuBtn");
+const profileDropdown = document.getElementById("profileDropdown");
+
+const threeDotsMenuBtn = document.getElementById("threeDotsMenuBtn");
+const threeDotsDropdown = document.getElementById("threeDotsDropdown");
+
+function closeAllDropdowns() {
+  settingsDropdown.classList.remove("active");
+  profileDropdown.classList.remove("active");
+  threeDotsDropdown.classList.remove("active");
+}
+
+settingsMenuBtn.onclick = (e) => {
+  e.stopPropagation();
+  const isOpen = settingsDropdown.classList.contains("active");
+  closeAllDropdowns();
+  if (!isOpen) settingsDropdown.classList.add("active");
+};
+
+profileMenuBtn.onclick = (e) => {
+  e.stopPropagation();
+  const isOpen = profileDropdown.classList.contains("active");
+  closeAllDropdowns();
+  if (!isOpen) profileDropdown.classList.add("active");
+};
+
+threeDotsMenuBtn.onclick = (e) => {
+  e.stopPropagation();
+  const isOpen = threeDotsDropdown.classList.contains("active");
+  closeAllDropdowns();
+  if (!isOpen) threeDotsDropdown.classList.add("active");
+};
+
+document.addEventListener("click", () => {
+  closeAllDropdowns();
+});
+
+// In-Chat Message Filter
+const toggleFilterBtn = document.getElementById("toggleFilterBtn");
+const chatFilterContainer = document.getElementById("chatFilterContainer");
+const chatMessageFilterInput = document.getElementById("chatMessageFilterInput");
+
+toggleFilterBtn.onclick = () => {
+  if (chatFilterContainer.style.display === "block") {
+    chatFilterContainer.style.display = "none";
+    chatMessageFilterInput.value = "";
+    filterMessagesInDOM("");
+  } else {
+    chatFilterContainer.style.display = "block";
+    chatMessageFilterInput.focus();
+  }
+};
+
+chatMessageFilterInput.oninput = (e) => {
+  filterMessagesInDOM(e.target.value.toLowerCase().trim());
+};
+
+function filterMessagesInDOM(term) {
+  const bubbles = messages.getElementsByClassName("bubble");
+  Array.from(bubbles).forEach(bubble => {
+    if (!term) {
+      bubble.style.display = "flex";
+      bubble.style.flexDirection = "column";
+    } else {
+      const text = bubble.textContent.toLowerCase();
+      bubble.style.display = text.includes(term) ? "flex" : "none";
+    }
+  });
+}
+
+function updateAdminPanels() {
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  adminGroupPanel.style.display = "flex";
+  document.getElementById("ownerNameSpan").textContent = currentUser;
+  
+  const blockBtn = document.getElementById("blockUserBtn");
+
+  // AI Assistant chat: no block, unfriend, or call controls - it's a built-in contact, not a real callable user
+  if (currentChatType === "user" && currentChatUser === AI_USERNAME) {
+    adminMemberPanel.style.display = "none";
+    deleteGroupBtn.style.display = "none";
+    unfriendBtn.style.display = "none";
+    blockBtn.style.display = "none";
+    voiceCallBtn.style.display = "none";
+    videoCallBtn.style.display = "none";
+    return;
+  }
+
+  if (currentChatType === "group" && currentChatUser) {
+    const currentGroup = allGroups.find(g => g.id === currentChatUser);
+    const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+    
+    if (isAdmin || isCreator) {
+      adminMemberPanel.style.display = "flex";
+      adminSelectedGroupName.textContent = currentChatUser;
+      deleteGroupBtn.style.display = "block";
+    } else {
+      adminMemberPanel.style.display = "none";
+      deleteGroupBtn.style.display = "none";
+    }
+    unfriendBtn.style.display = "none";
+    blockBtn.style.display = "none";
+  } else if (currentChatType === "user" && currentChatUser) {
+    adminMemberPanel.style.display = "none";
+    deleteGroupBtn.style.display = "none";
+    unfriendBtn.style.display = "block";
+    blockBtn.style.display = "block";
+
+    if (blockedUsers.includes(currentChatUser)) {
+      blockBtn.textContent = "Unblock User";
+      blockBtn.style.color = "var(--primary)";
+    } else {
+      blockBtn.textContent = "Block User";
+      blockBtn.style.color = "var(--danger)";
+    }
+  } else {
+    adminMemberPanel.style.display = "none";
+    deleteGroupBtn.style.display = "none";
+    unfriendBtn.style.display = "none";
+    blockBtn.style.display = "none";
+  }
+
+  if (currentChatUser && currentChatType === "user") {
+    const isBlockedEitherWay = blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser);
+    if (isBlockedEitherWay) {
+      voiceCallBtn.style.display = "none";
+      videoCallBtn.style.display = "none";
+    } else {
+      voiceCallBtn.style.display = "inline-block";
+      videoCallBtn.style.display = "inline-block";
+    }
+  } else {
+    // Group calling isn't implemented (no per-member signaling), so never advertise it for groups
+    voiceCallBtn.style.display = "none";
+    videoCallBtn.style.display = "none";
+  }
+}
+
+document.getElementById("authActionBtn").onclick = async () => {
+  const u = username.value.trim();
+  const p = password.value.trim();
+  if (!u || !p) return showAlert("Fill all fields", true);
+  if (u.toLowerCase() === AI_USERNAME.toLowerCase()) {
+    return showAlert("This username is reserved for the AI Assistant.", true);
+  }
+
+  const userRef = doc(db, "users", u);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    const accounts = getDeviceAccounts();
+    if (!accounts.includes(u) && accounts.length >= 3) {
+      return showAlert("Maximum limit of 3 accounts per device reached!", true);
+    }
+
+    await setDoc(userRef, {
+      password: p,
+      lastSeen: Date.now(),
+      online: true,
+      friends: ["admin"],
+      requests: [],
+      blocked: []
+    });
+    saveDeviceAccount(u);
+    currentUser = u;
+    initChatSession();
+    showAlert("Account created successfully!");
+  } else {
+    const data = userSnap.data();
+    if (data.password && data.password !== p) {
+      return showAlert("Incorrect password!", true);
+    }
+
+    const savedOk = saveDeviceAccount(u);
+    if (!savedOk) {
+      return showAlert("Maximum limit of 3 accounts per device reached on this device!", true);
+    }
+
+    currentUser = u;
+    initChatSession();
+    showAlert("Logged in successfully!");
+  }
+};
+
+document.getElementById("logoutBtn").onclick = () => {
+  showConfirm("Are you sure you want to log out of this account?", () => {
+    cleanupSessionListeners();
+    currentUser = "";
+    currentChatUser = "";
+    currentChatType = "user";
+    chatScreen.style.display = "none";
+    loginScreen.style.display = "flex";
+    initDeviceAccountsUI();
+    showAlert("Logged out successfully.");
+  });
+};
+
+function cleanupSessionListeners() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+  if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+  if (globalDirectoryUnsubscribe) { globalDirectoryUnsubscribe(); globalDirectoryUnsubscribe = null; }
+  if (globalGroupsUnsubscribe) { globalGroupsUnsubscribe(); globalGroupsUnsubscribe = null; }
+  if (globalMessagesUnsubscribe) { globalMessagesUnsubscribe(); globalMessagesUnsubscribe = null; }
+  if (incomingCallUnsubscribe) { incomingCallUnsubscribe(); incomingCallUnsubscribe = null; }
+}
+
+function initChatSession() {
+  updatePresence(true);
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => updatePresence(true), 15000);
+  window.addEventListener("beforeunload", () => updatePresence(false));
+
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+
+  loginScreen.style.display = "none";
+  chatScreen.style.display = "flex";
+  
+  updateAdminPanels();
+  loadDirectoryAndUserData();
+  listenGlobalMessages();
+  listenForIncomingCalls();
+}
+
+async function updatePresence(isOnline) {
+  if (!currentUser) return;
+  try {
+    await setDoc(doc(db, "users", currentUser), { 
+      lastSeen: Date.now(), 
+      online: isOnline 
+    }, { merge: true });
+  } catch (e) {}
+}
+
+createGroupBtn.onclick = async () => {
+  if (!checkRateLimit("createGroup", 5000)) {
+    return showAlert("You are creating groups too fast. Please wait.", true);
+  }
+
+  const groupName = newGroupName.value.trim();
+  if (!groupName) return showAlert("Enter a group name", true);
+
+  try {
+    const groupRef = doc(db, "groups", groupName);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists()) return showAlert("Group already exists", true);
+    
+    await setDoc(groupRef, {
+      createdBy: currentUser,
+      createdAt: Date.now(),
+      members: [currentUser]
+    });
+    
+    newGroupName.value = "";
+    showAlert(`Group "${groupName}" created!`);
+  } catch (err) {
+    showAlert("Failed to create group", true);
+  }
+};
+
+addMemberBtn.onclick = async () => {
+  if (!checkRateLimit("addMember", 2000)) {
+    return showAlert("Please wait before adding more members.", true);
+  }
+
+  if (currentChatType !== "group" || !currentChatUser) return showAlert("Please select a group first", true);
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+  if (!isAdmin && !isCreator) return showAlert("Only the group creator can add members!", true);
+
+  const targetUser = addMemberUsername.value.trim();
+  if (!targetUser) return showAlert("Enter a username", true);
+
+  try {
+    const userRef = doc(db, "users", targetUser);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return showAlert(`User "${targetUser}" does not exist!`, true);
+
+    const groupRef = doc(db, "groups", currentChatUser);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) return showAlert("Group not found", true);
+
+    const members = groupSnap.data().members || [];
+    if (members.includes(targetUser)) return showAlert(`"${targetUser}" is already in this group!`, true);
+
+    members.push(targetUser);
+    await updateDoc(groupRef, { members: members });
+
+    addMemberUsername.value = "";
+    showAlert(`Successfully added "${targetUser}"!`);
+  } catch (err) {
+    showAlert("Failed to add user", true);
+  }
+};
+
+deleteGroupBtn.onclick = () => {
+  if (currentChatType !== "group" || !currentChatUser) return;
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+
+  if (!isAdmin && !isCreator) {
+    return showAlert("Only the group creator can disband this group!", true);
+  }
+
+  showConfirm(`Disband group "${currentChatUser}"?`, async () => {
+    try {
+      const targetGroup = currentChatUser;
+      
+      const q = query(collection(db, "messages"), where("to", "==", targetGroup), where("isGroup", "==", true));
+      const snap = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        if (m.attachments && Array.isArray(m.attachments)) {
+          queueCloudinaryDeletion(m.attachments);
+        }
+        batch.delete(doc(db, "messages", docSnap.id));
+      });
+      batch.delete(doc(db, "groups", targetGroup));
+      await batch.commit();
+
+      if (activeMessagesUnsubscribe) {
+        activeMessagesUnsubscribe();
+        activeMessagesUnsubscribe = null;
+      }
+      if (activeTypingUnsubscribe) {
+        activeTypingUnsubscribe();
+        activeTypingUnsubscribe = null;
+      }
+
+      currentChatUser = "";
+      currentChatType = "user";
+      updateAdminPanels();
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      headerStatusText.textContent = "Select a chat";
+      showAlert("Group disbanded and all associated media/messages cleaned up.");
+    } catch (err) {
+      showAlert("Error disbanding group", true);
+    }
+  });
+};
+
+const unfriendBtn = document.getElementById("unfriendBtn");
+unfriendBtn.onclick = () => {
+  if (currentChatType !== "user" || !currentChatUser) return;
+  const targetFriend = currentChatUser;
+
+  showConfirm(`Unfriend @${targetFriend}?`, async () => {
+    try {
+      const myRef = doc(db, "users", currentUser);
+      const mySnap = await getDoc(myRef);
+      if (mySnap.exists()) {
+        let myFriends = (mySnap.data().friends || []).filter(f => f !== targetFriend);
+        await updateDoc(myRef, { friends: myFriends });
+      }
+
+      const targetRef = doc(db, "users", targetFriend);
+      const targetSnap = await getDoc(targetRef);
+      if (targetSnap.exists()) {
+        let targetFriends = (targetSnap.data().friends || []).filter(f => f !== currentUser);
+        await updateDoc(targetRef, { friends: targetFriends });
+      }
+
+      if (activeMessagesUnsubscribe) {
+        activeMessagesUnsubscribe();
+        activeMessagesUnsubscribe = null;
+      }
+      if (activeTypingUnsubscribe) {
+        activeTypingUnsubscribe();
+        activeTypingUnsubscribe = null;
+      }
+
+      currentChatUser = "";
+      currentChatType = "user";
+      updateAdminPanels();
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      headerStatusText.textContent = "Select a chat";
+      showAlert(`Unfriended @${targetFriend}`);
+    } catch (e) {
+      showAlert("Failed to unfriend user", true);
+    }
+  });
+};
+
+const blockUserBtn = document.getElementById("blockUserBtn");
+blockUserBtn.onclick = async () => {
+  if (currentChatType !== "user" || !currentChatUser) return;
+  const targetUser = currentChatUser;
+  const isCurrentlyBlocked = blockedUsers.includes(targetUser);
+
+  const actionText = isCurrentlyBlocked ? `Unblock @${targetUser}?` : `Block @${targetUser}? They won't be able to message or call you.`;
+
+  showConfirm(actionText, async () => {
+    try {
+      const myRef = doc(db, "users", currentUser);
+      const mySnap = await getDoc(myRef);
+      if (mySnap.exists()) {
+        let myBlocked = mySnap.data().blocked || [];
+        if (isCurrentlyBlocked) {
+          myBlocked = myBlocked.filter(u => u !== targetUser);
+        } else {
+          if (!myBlocked.includes(targetUser)) myBlocked.push(targetUser);
+        }
+        await updateDoc(myRef, { blocked: myBlocked });
+        showAlert(isCurrentlyBlocked ? `Unblocked @${targetUser}` : `Blocked @${targetUser}`);
+        updateAdminPanels();
+      }
+    } catch (e) {
+      showAlert("Failed to update block state", true);
+    }
+  });
+};
+
+const renameProfileBtn = document.getElementById("renameProfileBtn");
+renameProfileBtn.onclick = async () => {
+  const newName = prompt("Enter new username:", currentUser);
+  if (!newName || newName.trim() === "" || newName === currentUser) return;
+  const trimmed = newName.trim();
+  if (trimmed.toLowerCase() === AI_USERNAME.toLowerCase()) {
+    return showAlert("This username is reserved for the AI Assistant.", true);
+  }
+
+  try {
+    const newRef = doc(db, "users", trimmed);
+    const newSnap = await getDoc(newRef);
+    if (newSnap.exists()) {
+      return showAlert("Username already taken! Please choose another.", true);
+    }
+
+    const oldRef = doc(db, "users", currentUser);
+    const oldSnap = await getDoc(oldRef);
+    const userData = oldSnap.data() || {};
+
+    await setDoc(newRef, userData);
+
+    let accounts = getDeviceAccounts();
+    if (accounts.includes(currentUser)) {
+      accounts = accounts.map(acc => acc === currentUser ? trimmed : acc);
+      localStorage.setItem(`zchat_device_accounts_${DEVICE_ID}`, JSON.stringify(accounts));
+    }
+
+    const usersSnap = await getDocs(collection(db, "users"));
+    const groupsSnap = await getDocs(collection(db, "groups"));
+    const messagesSnap = await getDocs(collection(db, "messages"));
+
+    const updatePromises = [];
+
+    usersSnap.forEach(userDoc => {
+      if (userDoc.id === currentUser || userDoc.id === trimmed) return;
+      const uData = userDoc.data();
+      let modified = false;
+      let friends = uData.friends || [];
+      let requests = uData.requests || [];
+      let blocked = uData.blocked || [];
+
+      if (friends.includes(currentUser)) {
+        friends = friends.map(f => f === currentUser ? trimmed : f);
+        modified = true;
+      }
+      if (requests.includes(currentUser)) {
+        requests = requests.map(r => r === currentUser ? trimmed : r);
+        modified = true;
+      }
+      if (blocked.includes(currentUser)) {
+        blocked = blocked.map(b => b === currentUser ? trimmed : b);
+        modified = true;
+      }
+
+      if (modified) {
+        updatePromises.push(updateDoc(doc(db, "users", userDoc.id), {
+          friends: friends,
+          requests: requests,
+          blocked: blocked
+        }));
+      }
+    });
+
+    groupsSnap.forEach(groupDoc => {
+      const gData = groupDoc.data();
+      let gModified = false;
+      let members = gData.members || [];
+      let createdBy = gData.createdBy;
+
+      if (members.includes(currentUser)) {
+        members = members.map(m => m === currentUser ? trimmed : m);
+        gModified = true;
+      }
+      if (createdBy === currentUser) {
+        createdBy = trimmed;
+        gModified = true;
+      }
+
+      if (gModified) {
+        updatePromises.push(updateDoc(doc(db, "groups", groupDoc.id), {
+          members: members,
+          createdBy: createdBy
+        }));
+      }
+    });
+
+    messagesSnap.forEach(msgDoc => {
+      const mData = msgDoc.data();
+      let mModified = false;
+      let updatePayload = {};
+
+      if (mData.from === currentUser) {
+        updatePayload.from = trimmed;
+        mModified = true;
+      }
+      if (!mData.isGroup && mData.to === currentUser) {
+        updatePayload.to = trimmed;
+        mModified = true;
+      }
+      if (mData.replyTo && mData.replyTo.from === currentUser) {
+        updatePayload.replyTo = { ...mData.replyTo, from: trimmed };
+        mModified = true;
+      }
+
+      let seenBy = mData.seenBy || [];
+      if (seenBy.includes(currentUser)) {
+        updatePayload.seenBy = seenBy.map(s => s === currentUser ? trimmed : s);
+        mModified = true;
+      }
+
+      if (mModified) {
+        updatePromises.push(updateDoc(doc(db, "messages", msgDoc.id), updatePayload));
+      }
+    });
+
+    await Promise.all(updatePromises);
+    await deleteDoc(oldRef);
+
+    currentUser = trimmed;
+    currentChatUser = ""; 
+    currentChatType = "user";
+    messages.innerHTML = "";
+    lastVisibleMessageDoc = null;
+    olderMessagesAvailable = false;
+    updateAdminPanels();
+    renderList();
+    updateHeaderStatus();
+    initDeviceAccountsUI();
+    showAlert("Profile renamed successfully!");
+  } catch (e) {
+    showAlert("Failed to rename profile", true);
+  }
+};
+
+const deleteProfileBtn = document.getElementById("deleteProfileBtn");
+deleteProfileBtn.onclick = async () => {
+  showConfirm("Burn Profile? This will permanently delete your account, remove you from groups, and clear your records and media.", async () => {
+    try {
+      const targetUser = currentUser;
+
+      await deleteDoc(doc(db, "users", targetUser));
+      removeDeviceAccount(targetUser);
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      const groupsSnap = await getDocs(collection(db, "groups"));
+      const cleanupPromises = [];
+
+      usersSnap.forEach(userDoc => {
+        if (userDoc.id === targetUser) return;
+        const uData = userDoc.data();
+        let modified = false;
+        let friends = uData.friends || [];
+        let requests = uData.requests || [];
+        let blocked = uData.blocked || [];
+
+        if (friends.includes(targetUser)) {
+          friends = friends.filter(f => f !== targetUser);
+          modified = true;
+        }
+        if (requests.includes(targetUser)) {
+          requests = requests.filter(r => r !== targetUser);
+          modified = true;
+        }
+        if (blocked.includes(targetUser)) {
+          blocked = blocked.filter(b => b !== targetUser);
+          modified = true;
+        }
+
+        if (modified) {
+          cleanupPromises.push(updateDoc(doc(db, "users", userDoc.id), {
+            friends: friends,
+            requests: requests,
+            blocked: blocked
+          }));
+        }
+      });
+
+      groupsSnap.forEach(groupDoc => {
+        const gData = groupDoc.data();
+        let members = gData.members || [];
+        let createdBy = gData.createdBy;
+        let groupModified = false;
+
+        if (members.includes(targetUser)) {
+          members = members.filter(m => m !== targetUser);
+          groupModified = true;
+        }
+
+        if (groupModified) {
+          if (members.length === 0) {
+            cleanupPromises.push(deleteDoc(doc(db, "groups", groupDoc.id)));
+          } else {
+            if (createdBy === targetUser) {
+              createdBy = members[0];
+            }
+            cleanupPromises.push(updateDoc(doc(db, "groups", groupDoc.id), {
+              members: members,
+              createdBy: createdBy
+            }));
+          }
+        }
+      });
+
+      const q = query(collection(db, "messages"), where("from", "==", targetUser));
+      const snap = await getDocs(q);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        if (m.attachments && Array.isArray(m.attachments)) {
+          queueCloudinaryDeletion(m.attachments);
+        }
+        cleanupPromises.push(deleteDoc(doc(db, "messages", docSnap.id)));
+      });
+
+      await Promise.all(cleanupPromises);
+      cleanupSessionListeners();
+      currentUser = "";
+      currentChatUser = "";
+      currentChatType = "user";
+      chatScreen.style.display = "none";
+      loginScreen.style.display = "flex";
+      initDeviceAccountsUI();
+      showAlert("Account and associated data/media burned successfully.");
+    } catch (e) {
+      showAlert("Error burning profile", true);
+    }
+  });
+};
+
+const chatHeaderClickable = document.getElementById("chatHeaderClickable");
+const groupInfoModal = document.getElementById("groupInfoModal");
+const groupMembersList = document.getElementById("groupMembersList");
+const groupInfoTitle = document.getElementById("groupInfoTitle");
+
+chatHeaderClickable.onclick = async () => {
+  if (currentChatType === "group" && currentChatUser) {
+    groupInfoTitle.textContent = `Group: ${currentChatUser}`;
+    groupMembersList.innerHTML = "";
+    
+    try {
+      const groupRef = doc(db, "groups", currentChatUser);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const members = groupSnap.data().members || [];
+        members.forEach(m => {
+          const div = document.createElement("div");
+          div.style.cssText = "padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.9rem;";
+          div.textContent = `👤 @${m}`;
+          groupMembersList.appendChild(div);
+        });
+      }
+    } catch (e) {
+      groupMembersList.innerHTML = "<div>Error loading members</div>";
+    }
+
+    groupInfoModal.style.display = "flex";
+  }
+};
+
+document.getElementById("closeGroupInfoModal").onclick = () => {
+  groupInfoModal.style.display = "none";
+};
+
+document.getElementById("renameGroupBtn").onclick = async () => {
+  if (currentChatType !== "group" || !currentChatUser) return;
+  const currentGroup = allGroups.find(g => g.id === currentChatUser);
+  const isAdmin = currentUser.toLowerCase() === "admin";
+  const isCreator = currentGroup && currentGroup.createdBy === currentUser;
+
+  if (!isAdmin && !isCreator) {
+    return showAlert("Only the group creator can rename this group!", true);
+  }
+
+  const newName = prompt("Enter new group name:", currentChatUser);
+  if (!newName || newName.trim() === "" || newName === currentChatUser) return;
+  const trimmed = newName.trim();
+
+  try {
+    const oldGroupRef = doc(db, "groups", currentChatUser);
+    const oldGroupSnap = await getDoc(oldGroupRef);
+    if (!oldGroupSnap.exists()) return;
+
+    const groupData = oldGroupSnap.data();
+    const newGroupRef = doc(db, "groups", trimmed);
+    const newGroupSnap = await getDoc(newGroupRef);
+    if (newGroupSnap.exists()) {
+      return showAlert("Group name already taken!", true);
+    }
+
+    await setDoc(newGroupRef, groupData);
+    await deleteDoc(oldGroupRef);
+
+    const q = query(collection(db, "messages"), where("to", "==", currentChatUser), where("isGroup", "==", true));
+    const snap = await getDocs(q);
+    const updatePromises = [];
+    snap.forEach(docSnap => {
+      updatePromises.push(updateDoc(doc(db, "messages", docSnap.id), { to: trimmed }));
+    });
+    await Promise.all(updatePromises);
+
+    currentChatUser = trimmed;
+    chatTitle.textContent = trimmed;
+    groupInfoModal.style.display = "none";
+    showAlert("Group renamed successfully!");
+  } catch (e) {
+    showAlert("Failed to rename group", true);
+  }
+};
+
+const userSearchInput = document.getElementById("userSearchInput");
+const searchSuggestions = document.getElementById("searchSuggestions");
+const requestsBtn = document.getElementById("requestsBtn");
+const requestBadgeCount = document.getElementById("requestBadgeCount");
+const requestsModal = document.getElementById("requestsModal");
+const requestsList = document.getElementById("requestsList");
+
+requestsBtn.onclick = () => {
+  renderRequestsModal();
+  requestsModal.style.display = "flex";
+};
+
+document.getElementById("closeRequestsModal").onclick = () => {
+  requestsModal.style.display = "none";
+};
+
+userSearchInput.oninput = (e) => {
+  const queryText = e.target.value.trim().toLowerCase();
+  if (!queryText) {
+    searchSuggestions.style.display = "none";
+    return;
+  }
+  
+  const matches = allUsersDirectory.filter(u => u !== currentUser && u !== AI_USERNAME && u.toLowerCase().includes(queryText));
+  if (matches.length === 0) {
+    searchSuggestions.innerHTML = `<div class="suggestion-item" style="color:#aaa;">No users found</div>`;
+  } else {
+    let html = "";
+    matches.forEach(username => {
+      const isAlreadyFriend = friendsList.includes(username);
+      const isBlockedOrBlocking = blockedUsers.includes(username) || blockedByUsers.includes(username);
+      html += `
+        <div class="suggestion-item">
+          <span>👤 @${username}</span>
+          ${isBlockedOrBlocking ? '<span style="color:var(--danger); font-size:0.8rem;">Blocked</span>' : (isAlreadyFriend ? '<span style="color:var(--primary); font-size:0.8rem;">Connected</span>' : `<button style="padding:4px 10px; font-size:0.8rem;" onclick="sendFriendRequest('${username}')">Add Friend</button>`)}
+        </div>
+      `;
+    });
+    searchSuggestions.innerHTML = html;
+  }
+  searchSuggestions.style.display = "block";
+};
+
+document.addEventListener("click", (e) => {
+  if (!userSearchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+    searchSuggestions.style.display = "none";
+  }
+});
+
+window.sendFriendRequest = async (targetUser) => {
+  if (!checkRateLimit("sendFriendRequest", 3000)) {
+    return showAlert("Please wait before sending more friend requests.", true);
+  }
+
+  if (blockedUsers.includes(targetUser) || blockedByUsers.includes(targetUser)) {
+    return showAlert("Cannot send friend request to a blocked user.", true);
+  }
+
+  try {
+    const targetRef = doc(db, "users", targetUser);
+    const snap = await getDoc(targetRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const reqs = data.requests || [];
+      const targetBlocked = data.blocked || [];
+      if (targetBlocked.includes(currentUser)) {
+        return showAlert("This user has blocked you.", true);
+      }
+      if (!reqs.includes(currentUser)) {
+        reqs.push(currentUser);
+        await updateDoc(targetRef, { requests: reqs });
+        showAlert(`Friend request sent to @${targetUser}!`);
+      } else {
+        showAlert("Request already sent!");
+      }
+    }
+    searchSuggestions.style.display = "none";
+    userSearchInput.value = "";
+  } catch (err) {
+    showAlert("Failed to send request", true);
+  }
+};
+
+function renderRequestsModal() {
+  requestsList.innerHTML = "";
+  if (friendRequests.length === 0) {
+    requestsList.innerHTML = `<div style="text-align:center; color:#aaa;">No pending requests</div>`;
+    return;
+  }
+  friendRequests.forEach(fromUser => {
+    const item = document.createElement("div");
+    item.className = "request-item";
+    item.innerHTML = `
+      <span>@${fromUser}</span>
+      <div style="display:flex; gap:6px;">
+        <button style="padding:4px 10px; font-size:0.8rem;" onclick="acceptRequest('${fromUser}')">Accept</button>
+        <button style="padding:4px 10px; font-size:0.8rem; background:var(--danger); color:white;" onclick="rejectRequest('${fromUser}')">Reject</button>
+      </div>
+    `;
+    requestsList.appendChild(item);
+  });
+}
+
+window.acceptRequest = async (fromUser) => {
+  if (blockedUsers.includes(fromUser) || blockedByUsers.includes(fromUser)) {
+    return showAlert("Cannot accept requests from blocked users.", true);
+  }
+
+  try {
+    const myRef = doc(db, "users", currentUser);
+    const mySnap = await getDoc(myRef);
+    let myFriends = mySnap.data().friends || [];
+    let myReqs = mySnap.data().requests || [];
+    
+    if (!myFriends.includes(fromUser)) myFriends.push(fromUser);
+    myReqs = myReqs.filter(u => u !== fromUser);
+    await updateDoc(myRef, { friends: myFriends, requests: myReqs });
+
+    const otherRef = doc(db, "users", fromUser);
+    const otherSnap = await getDoc(otherRef);
+    if (otherSnap.exists()) {
+      let otherFriends = otherSnap.data().friends || [];
+      if (!otherFriends.includes(currentUser)) {
+        otherFriends.push(currentUser);
+        await updateDoc(otherRef, { friends: otherFriends });
+      }
+    }
+
+    showAlert(`You are now friends with @${fromUser}!`);
+    renderRequestsModal();
+  } catch (e) {
+    showAlert("Error accepting request", true);
+  }
+};
+
+window.rejectRequest = async (fromUser) => {
+  try {
+    const myRef = doc(db, "users", currentUser);
+    const mySnap = await getDoc(myRef);
+    let myReqs = (mySnap.data().requests || []).filter(u => u !== fromUser);
+    await updateDoc(myRef, { requests: myReqs });
+    showAlert("Request rejected");
+    renderRequestsModal();
+  } catch (e) {
+    showAlert("Error rejecting request", true);
+  }
+};
+
+function loadDirectoryAndUserData() {
+  globalDirectoryUnsubscribe = onSnapshot(collection(db, "users"), userSnap => {
+    allUsersDirectory = [];
+    userStatuses = {};
+    const now = Date.now();
+    userSnap.forEach(d => {
+      const data = d.data();
+      const isOnline = data.online && (now - (data.lastSeen || 0) < 35000);
+      userStatuses[d.id] = { online: isOnline, lastSeen: data.lastSeen || 0 };
+      allUsersDirectory.push(d.id);
+
+      if (d.id === currentUser) {
+        friendsList = data.friends || ["admin"];
+        friendRequests = data.requests || [];
+        blockedUsers = data.blocked || [];
+        if (friendRequests.length > 0) {
+          requestBadgeCount.style.display = "inline-block";
+          requestBadgeCount.textContent = friendRequests.length;
+        } else {
+          requestBadgeCount.style.display = "none";
+        }
+      }
+    });
+
+    blockedByUsers = [];
+    userSnap.forEach(d => {
+      const data = d.data();
+      const targetBlockedList = data.blocked || [];
+      if (targetBlockedList.includes(currentUser)) {
+        blockedByUsers.push(d.id);
+      }
+    });
+
+    renderList();
+    updateHeaderStatus();
+    updateAdminPanels();
+  });
+
+  globalGroupsUnsubscribe = onSnapshot(collection(db, "groups"), groupSnap => {
+    allGroups = [];
+    groupSnap.forEach(d => {
+      const groupData = d.data();
+      const members = groupData.members || [];
+      if (members.includes(currentUser) || groupData.createdBy === currentUser) {
+        allGroups.push({ id: d.id, type: "group", members: members, createdBy: groupData.createdBy });
+      }
+    });
+    renderList();
+  });
+}
+
+function listenGlobalMessages() {
+  globalMessagesUnsubscribe = onSnapshot(collection(db, "messages"), snap => {
+    allMessagesCache = [];
+    snap.forEach(docSnap => {
+      allMessagesCache.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    renderList();
+    if (currentChatUser) {
+      loadMessages();
+    }
+  });
+}
+
+function updateHeaderStatus() {
+  if (!currentChatUser) {
+    headerStatusText.textContent = "Select a chat";
+    headerStatusDot.className = "status-dot";
+    return;
+  }
+  
+  if (currentChatType === "user" && currentChatUser === AI_USERNAME) {
+    headerStatusDot.className = "status-dot online";
+    headerStatusText.textContent = "AI Assistant • Always available";
+    return;
+  }
+
+  const isBlockedEitherWay = blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser);
+  if (isBlockedEitherWay && currentChatType === "user") {
+    headerStatusDot.className = "status-dot";
+    headerStatusText.textContent = "Blocked / Unavailable";
+    return;
+  }
+
+  if (currentChatType === "group") {
+    headerStatusDot.className = "status-dot online";
+    headerStatusText.textContent = "Group Chat (Click for info)";
+  } else {
+    const status = userStatuses[currentChatUser];
+    if (status && status.online) {
+      headerStatusDot.className = "status-dot online";
+      headerStatusText.textContent = "Online";
+    } else {
+      headerStatusDot.className = "status-dot";
+      if (status && status.lastSeen) {
+        const diffMs = Date.now() - status.lastSeen;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        let timeAgo = "";
+        if (diffDays > 0) timeAgo = `${diffDays}d ago`;
+        else if (diffHours > 0) timeAgo = `${diffHours}h ago`;
+        else if (diffMins > 0) timeAgo = `${diffMins}m ago`;
+        else timeAgo = "Just now";
+        
+        headerStatusText.textContent = `Last seen ${timeAgo}`;
+      } else {
+        headerStatusText.textContent = "Offline";
+      }
+    }
+  }
+}
+
+function renderList() {
+  userList.innerHTML = "";
+
+  // Compulsory AI Assistant contact - always present for every user, pinned first, no friend request required
+  let aiUnreadCount = 0;
+  allMessagesCache.forEach(m => {
+    if (!m.isGroup && m.from === AI_USERNAME && m.to === currentUser) {
+      const seenBy = m.seenBy || [];
+      if (!seenBy.includes(currentUser)) aiUnreadCount++;
+    }
+  });
+  const aiChip = document.createElement("div");
+  aiChip.className = "user-chip" + (currentChatUser === AI_USERNAME && currentChatType === "user" ? " active" : "");
+  let aiBadgeHtml = aiUnreadCount > 0 ? `<span class="unread-arrow-badge">↙ ${aiUnreadCount}</span>` : "";
+  aiChip.innerHTML = `<span class="chip-dot online"></span> 🤖 @${AI_USERNAME} ${aiBadgeHtml}`;
+  aiChip.onclick = () => {
+    if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+    if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+    currentChatUser = AI_USERNAME;
+    currentChatType = "user";
+    chatTitle.textContent = `@${AI_USERNAME}`;
+    updateAdminPanels();
+    renderList();
+    updateHeaderStatus();
+    loadMessages();
+    listenTypingStatus();
+  };
+  userList.appendChild(aiChip);
+
+  allGroups.forEach(g => {
+    let unreadCount = 0;
+    allMessagesCache.forEach(m => {
+      if (m.isGroup && m.to === g.id && m.from !== currentUser) {
+        const seenBy = m.seenBy || [];
+        if (!seenBy.includes(currentUser)) unreadCount++;
+      }
+    });
+
+    const chip = document.createElement("div");
+    chip.className = "user-chip" + (currentChatUser === g.id && currentChatType === "group" ? " active" : "");
+    let badgeHtml = unreadCount > 0 ? `<span class="unread-arrow-badge">↙ ${unreadCount}</span>` : "";
+    chip.innerHTML = `👥 #${g.id} ${badgeHtml}`;
+    chip.onclick = () => {
+      if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+      if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+      currentChatUser = g.id;
+      currentChatType = "group";
+      chatTitle.textContent = `#${g.id}`;
+      updateAdminPanels();
+      renderList(); 
+      updateHeaderStatus();
+      loadMessages();
+      listenTypingStatus();
+    };
+    userList.appendChild(chip);
+  });
+
+  friendsList.forEach(friendId => {
+    if (friendId === currentUser || friendId === AI_USERNAME) return;
+    const status = userStatuses[friendId] || { online: false };
+    
+    let unreadCount = 0;
+    allMessagesCache.forEach(m => {
+      if (!m.isGroup && m.from === friendId && m.to === currentUser) {
+        const seenBy = m.seenBy || [];
+        if (!seenBy.includes(currentUser)) unreadCount++;
+      }
+    });
+
+    const chip = document.createElement("div");
+    chip.className = "user-chip" + (currentChatUser === friendId && currentChatType === "user" ? " active" : "");
+    let badgeHtml = unreadCount > 0 ? `<span class="unread-arrow-badge">↙ ${unreadCount}</span>` : "";
+    chip.innerHTML = `<span class="chip-dot ${status.online ? 'online' : ''}"></span> @${friendId} ${badgeHtml}`;
+    chip.onclick = () => {
+      if (activeMessagesUnsubscribe) { activeMessagesUnsubscribe(); activeMessagesUnsubscribe = null; }
+      if (activeTypingUnsubscribe) { activeTypingUnsubscribe(); activeTypingUnsubscribe = null; }
+      currentChatUser = friendId;
+      currentChatType = "user";
+      chatTitle.textContent = `@${friendId}`;
+      updateAdminPanels();
+      renderList(); 
+      updateHeaderStatus();
+      loadMessages();
+      listenTypingStatus();
+    };
+    userList.appendChild(chip);
+  });
+}
+
+const messageInput = document.getElementById("messageInput");
+
+messageInput.onkeydown = (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendBtn.click();
+  }
+};
+
+messageInput.oninput = async () => {
+  if (!currentChatUser || !currentUser) return;
+  const typingRef = doc(db, "typing", `${currentUser}_${currentChatUser}`);
+  await setDoc(typingRef, { isTyping: true, time: Date.now() }, { merge: true });
+
+  if (typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(async () => {
+    await setDoc(typingRef, { isTyping: false, time: Date.now() }, { merge: true });
+  }, 1500);
+};
+
+function listenTypingStatus() {
+  if (!currentChatUser) return;
+  if (activeTypingUnsubscribe) {
+    activeTypingUnsubscribe();
+    activeTypingUnsubscribe = null;
+  }
+
+  if (currentChatType === "group") {
+    const typingQuery = query(collection(db, "typing"));
+    activeTypingUnsubscribe = onSnapshot(typingQuery, snap => {
+      let typingNames = [];
+      const now = Date.now();
+      snap.forEach(d => {
+        const parts = d.id.split("_");
+        if (parts.length === 2) {
+          const fromUser = parts[0];
+          const toTarget = parts[1];
+          if (toTarget === currentChatUser && fromUser !== currentUser && d.data().isTyping && (now - d.data().time < 3000)) {
+            typingNames.push(fromUser);
+          }
+        }
+      });
+      if (typingNames.length > 0) {
+        headerStatusText.textContent = `${typingNames.join(", ")} typing...`;
+      } else {
+        updateHeaderStatus();
+      }
+    });
+  } else {
+    const typingRef = doc(db, "typing", `${currentChatUser}_${currentUser}`);
+    activeTypingUnsubscribe = onSnapshot(typingRef, snap => {
+      if (snap.exists() && snap.data().isTyping && (Date.now() - snap.data().time < 3000)) {
+        headerStatusText.textContent = "typing...";
+      } else {
+        updateHeaderStatus();
+      }
+    });
+  }
+}
+
+const emojiToggleBtn = document.getElementById("emojiToggleBtn");
+const emojiTray = document.getElementById("emojiTray");
+
+emojiToggleBtn.onclick = (e) => {
+  e.stopPropagation();
+  emojiTray.style.display = emojiTray.style.display === "grid" ? "none" : "grid";
+};
+
+document.body.onclick = () => {
+  emojiTray.style.display = "none";
+};
+
+window.insertEmoji = (emoji) => {
+  messageInput.value += emoji;
+  emojiTray.style.display = "none";
+  messageInput.focus();
+};
+
+// =========================================================================
+// PRO ADD-ON: Full Emoji Picker, Sticker Packs, GIF Picker, Polls,
+// Pinned Messages, Disappearing Messages.
+// Everything below is purely additive and does not alter any existing
+// function, listener, or behavior defined above.
+// =========================================================================
+
+/* ---------- Full Emoji Picker (categories + search) ---------- */
+const EMOJI_CATEGORIES = [
+  { id: "smileys", label: "😀 Smileys", emojis: [
+    ["😀","grinning happy smile"],["😁","grinning beaming smile"],["😂","joy laughing tears"],["🤣","rofl laughing floor"],
+    ["😊","smiling blush happy"],["😇","angel innocent halo"],["🙂","slight smile"],["🙃","upside down silly"],
+    ["😉","wink"],["😍","heart eyes love"],["🥰","smiling hearts love"],["😘","kiss face love"],
+    ["😗","kissing"],["😋","yum tongue tasty"],["😛","tongue silly"],["😜","wink tongue silly"],
+    ["🤪","zany crazy silly"],["🤨","raised eyebrow suspicious"],["🧐","monocle thinking"],["🤓","nerd glasses"],
+    ["😎","cool sunglasses"],["🥳","party celebration"],["😏","smirk"],["😒","unamused annoyed"],
+    ["😞","disappointed sad"],["😔","pensive sad"],["😟","worried"],["😕","confused"],
+    ["🙁","frown sad"],["😣","persevere struggle"],["😖","confounded"],["😫","tired exhausted"],
+    ["😩","weary tired"],["🥺","pleading puppy eyes"],["😢","crying sad tear"],["😭","sobbing crying loud"],
+    ["😤","triumph huff"],["😠","angry mad"],["😡","rage furious angry"],["🤬","cursing angry swearing"],
+    ["🤯","mind blown shocked"],["😳","flushed embarrassed"],["🥵","hot sweating"],["🥶","cold freezing"],
+    ["😱","scream shocked fear"],["😨","fearful scared"],["😰","anxious sweat"],["😥","sad relieved sweat"],
+    ["😓","downcast sweat"],["🤗","hugging hug"],["🤔","thinking"],["🤭","hand over mouth giggle"],
+    ["🤫","shush quiet secret"],["🤥","lying pinocchio nose"],["😶","no mouth speechless"],["😐","neutral face"],
+    ["😑","expressionless"],["😬","grimace awkward"],["🙄","eye roll"],["😯","surprised hush"],
+    ["😦","frowning open mouth"],["😧","anguished"],["😮","open mouth surprised"],["😲","astonished shocked"],
+    ["🥱","yawn tired sleepy"],["😴","sleeping zzz"],["🤤","drooling"],["😪","sleepy tired"],
+    ["😵","dizzy woozy"],["🤐","zipper mouth silent"],["🥴","woozy dizzy drunk"],["🤢","nauseated sick"],
+    ["🤮","vomiting sick"],["🤧","sneeze sick"],["🥸","disguise glasses"],["🤡","clown"]
+  ]},
+  { id: "gestures", label: "👋 People", emojis: [
+    ["👋","wave hello hi bye"],["🤚","raised back hand"],["🖐️","hand splayed"],["✋","raised hand stop"],
+    ["🖖","vulcan spock"],["👌","ok okay hand"],["🤌","pinched fingers"],["🤏","pinching small"],
+    ["✌️","peace victory"],["🤞","fingers crossed luck"],["🫰","finger heart"],["🤟","love you gesture"],
+    ["🤘","rock horns"],["🤙","call me hand"],["👈","point left"],["👉","point right"],
+    ["👆","point up"],["🖕","middle finger"],["👇","point down"],["☝️","index up"],
+    ["👍","thumbs up like"],["👎","thumbs down dislike"],["✊","fist power"],["👊","fist bump punch"],
+    ["🤛","fist bump left"],["🤜","fist bump right"],["👏","clap applause"],["🙌","raised hands celebrate"],
+    ["👐","open hands"],["🤲","palms up"],["🤝","handshake deal"],["🙏","pray thanks please"],
+    ["✍️","writing hand"],["💪","muscle strong flex"],["🦾","mechanical arm"],["🧠","brain smart"],
+    ["👀","eyes look"],["👁️","eye"],["👅","tongue"],["👄","mouth lips"],
+    ["💋","kiss lips"],["🩸","blood drop"],["👶","baby"],["🧒","child kid"],
+    ["👦","boy"],["👧","girl"],["🧑","person adult"],["👨","man"],
+    ["👩","woman"],["🧓","older person"],["👴","old man grandpa"],["👵","old woman grandma"]
+  ]},
+  { id: "animals", label: "🐶 Animals", emojis: [
+    ["🐶","dog puppy"],["🐱","cat kitten"],["🐭","mouse"],["🐹","hamster"],
+    ["🐰","rabbit bunny"],["🦊","fox"],["🐻","bear"],["🐼","panda"],
+    ["🐨","koala"],["🐯","tiger"],["🦁","lion"],["🐮","cow"],
+    ["🐷","pig"],["🐸","frog"],["🐵","monkey"],["🙈","see no evil monkey"],
+    ["🐔","chicken"],["🐧","penguin"],["🐦","bird"],["🦅","eagle"],
+    ["🦉","owl"],["🦇","bat"],["🐺","wolf"],["🐗","boar"],
+    ["🐴","horse"],["🦄","unicorn"],["🐝","bee"],["🐛","bug"],
+    ["🦋","butterfly"],["🐌","snail"],["🐞","ladybug"],["🐜","ant"],
+    ["🦟","mosquito"],["🕷️","spider"],["🦂","scorpion"],["🐢","turtle"],
+    ["🐍","snake"],["🦎","lizard"],["🦖","dinosaur trex"],["🦕","dinosaur"],
+    ["🐙","octopus"],["🦑","squid"],["🦐","shrimp"],["🦞","lobster"],
+    ["🦀","crab"],["🐡","pufferfish"],["🐠","fish tropical"],["🐟","fish"],
+    ["🐬","dolphin"],["🐳","whale"],["🦈","shark"],["🐊","crocodile"],
+    ["🐆","leopard"],["🦓","zebra"],["🦍","gorilla"],["🐘","elephant"],
+    ["🦛","hippo"],["🦏","rhino"],["🐪","camel"],["🦒","giraffe"],
+    ["🐕","dog2"],["🐩","poodle"],["🐈","cat2"],["🐓","rooster"],
+    ["🦃","turkey"],["🕊️","dove peace"],["🐇","rabbit2"],["🦔","hedgehog"]
+  ]},
+  { id: "food", label: "🍕 Food", emojis: [
+    ["🍏","green apple"],["🍎","red apple"],["🍐","pear"],["🍊","orange tangerine"],
+    ["🍋","lemon"],["🍌","banana"],["🍉","watermelon"],["🍇","grapes"],
+    ["🍓","strawberry"],["🫐","blueberries"],["🍈","melon"],["🍒","cherries"],
+    ["🍑","peach"],["🥭","mango"],["🍍","pineapple"],["🥥","coconut"],
+    ["🥝","kiwi"],["🍅","tomato"],["🍆","eggplant"],["🥑","avocado"],
+    ["🥦","broccoli"],["🥬","lettuce leafy green"],["🥒","cucumber"],["🌶️","hot pepper spicy"],
+    ["🌽","corn"],["🥕","carrot"],["🧄","garlic"],["🧅","onion"],
+    ["🥔","potato"],["🍞","bread"],["🥐","croissant"],["🥖","baguette bread"],
+    ["🥨","pretzel"],["🧀","cheese"],["🥚","egg"],["🍳","fried egg cooking"],
+    ["🥞","pancakes"],["🧇","waffle"],["🥓","bacon"],["🍗","chicken leg"],
+    ["🍖","meat bone"],["🌭","hot dog"],["🍔","burger hamburger"],["🍟","fries"],
+    ["🍕","pizza"],["🥪","sandwich"],["🌮","taco"],["🌯","burrito"],
+    ["🥗","salad"],["🍿","popcorn"],["🍱","bento box"],["🍣","sushi"],
+    ["🍜","noodles ramen"],["🍝","spaghetti pasta"],["🍩","donut"],["🍪","cookie"],
+    ["🎂","birthday cake"],["🍰","cake slice"],["🧁","cupcake"],["🍫","chocolate"],
+    ["🍬","candy"],["🍭","lollipop"],["🍯","honey"],["☕","coffee"],
+    ["🍵","tea"],["🧃","juice box"],["🍺","beer"],["🍷","wine"],
+    ["🍸","cocktail"],["🥤","soda drink"],["🧋","boba bubble tea"],["🍾","champagne bottle"]
+  ]},
+  { id: "activities", label: "⚽ Activities", emojis: [
+    ["⚽","soccer ball football"],["🏀","basketball"],["🏈","american football"],["⚾","baseball"],
+    ["🎾","tennis"],["🏐","volleyball"],["🏉","rugby"],["🎱","pool billiards eight ball"],
+    ["🏓","ping pong table tennis"],["🏸","badminton"],["🥊","boxing glove"],["🥋","martial arts"],
+    ["🎯","dart target"],["🎳","bowling"],["⛳","golf"],["🏆","trophy win"],
+    ["🥇","gold medal first"],["🥈","silver medal second"],["🥉","bronze medal third"],["🎮","video game controller"],
+    ["🕹️","joystick game"],["🎲","dice game"],["🧩","puzzle piece"],["🎸","guitar music"],
+    ["🎹","piano music"],["🥁","drum music"],["🎤","microphone karaoke sing"],["🎧","headphones music"],
+    ["🎬","clapperboard movie film"],["🎨","art paint palette"],["🚴","cycling bike"],["🏃","running"],
+    ["🏋️","weight lifting gym"],["🧘","yoga meditate"],["🏄","surfing"],["🏊","swimming"],
+    ["⛷️","skiing"],["🏂","snowboarding"],["🎣","fishing"],["🥏","frisbee"]
+  ]},
+  { id: "travel", label: "✈️ Travel", emojis: [
+    ["🚗","car"],["🚕","taxi"],["🚙","suv car"],["🚌","bus"],
+    ["🚎","trolley bus"],["🏎️","race car"],["🚓","police car"],["🚑","ambulance"],
+    ["🚒","fire truck"],["🚐","van"],["🚚","delivery truck"],["🚛","semi truck"],
+    ["🚲","bicycle"],["🛵","scooter moped"],["🏍️","motorcycle"],["✈️","airplane flight"],
+    ["🚀","rocket launch"],["🛸","ufo spaceship"],["🚁","helicopter"],["⛵","sailboat"],
+    ["🚤","speedboat"],["🛳️","cruise ship"],["⚓","anchor"],["🚂","train locomotive"],
+    ["🚆","train"],["🚇","subway metro"],["🗽","statue of liberty"],["🗼","tokyo tower"],
+    ["🏰","castle"],["🏯","japanese castle"],["🗻","mount fuji mountain"],["🏔️","snow mountain"],
+    ["🌋","volcano"],["🏖️","beach"],["🏝️","desert island"],["🏕️","camping tent"],
+    ["🛤️","railway track"],["🌉","bridge night"],["🌆","cityscape sunset"],["🗺️","world map"]
+  ]},
+  { id: "objects", label: "💡 Objects", emojis: [
+    ["📱","phone mobile"],["💻","laptop computer"],["⌨️","keyboard"],["🖥️","desktop computer"],
+    ["🖨️","printer"],["🖱️","mouse computer"],["📷","camera"],["📸","camera flash"],
+    ["🎥","video camera"],["📺","tv television"],["📻","radio"],["⏰","alarm clock"],
+    ["⏱️","stopwatch timer"],["💡","lightbulb idea"],["🔦","flashlight"],["🕯️","candle"],
+    ["💰","money bag"],["💵","dollar cash"],["💳","credit card"],["💎","diamond gem"],
+    ["⚖️","balance scale"],["🔧","wrench tool"],["🔨","hammer tool"],["🪛","screwdriver"],
+    ["🔩","nut bolt"],["⚙️","gear settings"],["🔗","link chain"],["🔒","lock secure"],
+    ["🔓","unlock"],["🔑","key"],["🗝️","old key"],["🪓","axe"],
+    ["🧲","magnet"],["🔬","microscope science"],["🔭","telescope"],["📡","satellite dish"],
+    ["💉","syringe medical"],["💊","pill medicine"],["🩹","bandage"],["🌡️","thermometer"],
+    ["🧴","lotion bottle"],["🧻","toilet paper"],["🧹","broom clean"],["🧺","basket laundry"],
+    ["📚","books"],["📖","open book"],["📝","memo writing"],["✏️","pencil"],
+    ["🖊️","pen"],["📎","paperclip"],["📌","pushpin pin"],["📅","calendar date"],
+    ["🎁","gift present"],["🎈","balloon"],["🎉","party popper celebration"],["🎊","confetti ball"]
+  ]},
+  { id: "symbols", label: "❤️ Symbols", emojis: [
+    ["❤️","red heart love"],["🧡","orange heart"],["💛","yellow heart"],["💚","green heart"],
+    ["💙","blue heart"],["💜","purple heart"],["🖤","black heart"],["🤍","white heart"],
+    ["🤎","brown heart"],["💔","broken heart sad"],["❣️","heart exclamation"],["💕","two hearts love"],
+    ["💞","revolving hearts"],["💓","beating heart"],["💗","growing heart"],["💖","sparkling heart"],
+    ["💘","heart arrow cupid"],["💝","heart gift ribbon"],["✨","sparkles"],["⭐","star"],
+    ["🌟","glowing star"],["💫","dizzy star"],["🔥","fire lit"],["💯","hundred perfect"],
+    ["✅","check mark done"],["❌","cross x no"],["❓","question mark"],["❗","exclamation mark"],
+    ["⚠️","warning caution"],["🚫","prohibited no"],["♻️","recycle"],["🆗","ok symbol"],
+    ["🆕","new symbol"],["🔞","18 plus"],["📵","no phones"],["🔇","mute silent"],
+    ["🔊","loud sound volume"],["🔔","bell notification"],["🔕","bell mute silent"],["💬","speech bubble chat"],
+    ["💭","thought bubble"],["🗯️","anger bubble"],["♥️","heart suit"],["♦️","diamond suit"]
+  ]},
+  { id: "flags", label: "🏳️ Flags", emojis: [
+    ["🏳️","white flag"],["🏴","black flag"],["🏁","checkered flag finish"],["🚩","triangular red flag"],
+    ["🏳️‍🌈","rainbow pride flag"],["🇺🇸","usa flag america"],["🇬🇧","uk flag britain"],["🇨🇦","canada flag"],
+    ["🇦🇺","australia flag"],["🇮🇳","india flag"],["🇯🇵","japan flag"],["🇰🇷","south korea flag"],
+    ["🇨🇳","china flag"],["🇩🇪","germany flag"],["🇫🇷","france flag"],["🇮🇹","italy flag"],
+    ["🇪🇸","spain flag"],["🇧🇷","brazil flag"],["🇲🇽","mexico flag"],["🇸🇬","singapore flag"],
+    ["🇿🇦","south africa flag"],["🇳🇬","nigeria flag"],["🇦🇪","uae flag"],["🇸🇦","saudi arabia flag"]
+  ]}
+];
+
+const emojiSearchInput = document.getElementById("emojiSearchInput");
+const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
+const emojiPickerGrid = document.getElementById("emojiPickerGrid");
+let activeEmojiCategory = EMOJI_CATEGORIES[0].id;
+
+function renderEmojiTabs() {
+  emojiCategoryTabs.innerHTML = "";
+  EMOJI_CATEGORIES.forEach(cat => {
+    const tab = document.createElement("button");
+    tab.className = "pro-tab-btn" + (cat.id === activeEmojiCategory ? " active" : "");
+    tab.textContent = cat.label;
+    tab.onclick = (e) => {
+      e.stopPropagation();
+      activeEmojiCategory = cat.id;
+      emojiSearchInput.value = "";
+      renderEmojiTabs();
+      renderEmojiGrid();
+    };
+    emojiCategoryTabs.appendChild(tab);
+  });
+}
+
+function renderEmojiGrid() {
+  const searchTerm = emojiSearchInput.value.trim().toLowerCase();
+  emojiPickerGrid.innerHTML = "";
+  let list = [];
+  if (searchTerm) {
+    EMOJI_CATEGORIES.forEach(cat => {
+      cat.emojis.forEach(([emoji, keywords]) => {
+        if (keywords.includes(searchTerm) || keywords.split(" ").some(k => k.startsWith(searchTerm))) {
+          list.push(emoji);
+        }
+      });
+    });
+  } else {
+    const cat = EMOJI_CATEGORIES.find(c => c.id === activeEmojiCategory);
+    list = cat ? cat.emojis.map(e => e[0]) : [];
+  }
+
+  if (list.length === 0) {
+    emojiPickerGrid.innerHTML = `<div class="pro-panel-empty">No emojis found for "${searchTerm}"</div>`;
+    return;
+  }
+
+  list.forEach(emoji => {
+    const btn = document.createElement("button");
+    btn.className = "pro-emoji-cell";
+    btn.textContent = emoji;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      messageInput.value += emoji;
+      messageInput.focus();
+    };
+    emojiPickerGrid.appendChild(btn);
+  });
+}
+
+emojiSearchInput.addEventListener("click", e => e.stopPropagation());
+emojiSearchInput.addEventListener("input", renderEmojiGrid);
+renderEmojiTabs();
+renderEmojiGrid();
+
+/* ---------- Sticker Packs ---------- */
+const STICKER_PACKS = [
+  { id: "love", label: "❤️ Love", stickers: ["😍","🥰","😘","💖","💘","💕","😻","💋","🌹","💐","👩‍❤️‍👨","💑"] },
+  { id: "funny", label: "😂 Funny", stickers: ["🤣","😂","🤪","🙈","🤡","💀","🫠","🥴","😜","🤯","🫣","😹"] },
+  { id: "animals", label: "🐾 Animals", stickers: ["🐶","🐱","🐼","🦊","🐻","🐨","🦄","🐸","🦁","🐵","🐧","🐷"] },
+  { id: "reactions", label: "👍 Reactions", stickers: ["👍","👎","🔥","💯","👏","🙌","🎉","✅","😱","🤝","🙏","😮"] }
+];
+const stickerPackTabs = document.getElementById("stickerPackTabs");
+const stickerPickerGrid = document.getElementById("stickerPickerGrid");
+let activeStickerPack = STICKER_PACKS[0].id;
+
+function renderStickerTabs() {
+  stickerPackTabs.innerHTML = "";
+  STICKER_PACKS.forEach(pack => {
+    const tab = document.createElement("button");
+    tab.className = "pro-tab-btn" + (pack.id === activeStickerPack ? " active" : "");
+    tab.textContent = pack.label;
+    tab.onclick = (e) => {
+      e.stopPropagation();
+      activeStickerPack = pack.id;
+      renderStickerTabs();
+      renderStickerGrid();
+    };
+    stickerPackTabs.appendChild(tab);
+  });
+}
+
+function renderStickerGrid() {
+  stickerPickerGrid.innerHTML = "";
+  const pack = STICKER_PACKS.find(p => p.id === activeStickerPack);
+  (pack ? pack.stickers : []).forEach(emoji => {
+    const btn = document.createElement("button");
+    btn.className = "pro-sticker-cell";
+    btn.textContent = emoji;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      sendStickerMessage(emoji);
+    };
+    stickerPickerGrid.appendChild(btn);
+  });
+}
+renderStickerTabs();
+renderStickerGrid();
+
+async function sendStickerMessage(emoji) {
+  if (!currentChatUser) return showAlert("Please select a user or group to chat with first!", true);
+  if (!checkRateLimit("sendMessage", 1000)) {
+    return showAlert("You are sending messages too fast. Please slow down.", true);
+  }
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot send messages to or from a blocked user.", true);
+  }
+  stickerPicker.classList.remove("open");
+  try {
+    const payload = {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: "",
+      type: "sticker",
+      stickerEmoji: emoji,
+      attachments: [],
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: null
+    };
+    if (currentChatDisappearing > 0) payload.expiresAt = Date.now() + currentChatDisappearing;
+    await addDoc(collection(db, "messages"), payload);
+  } catch (e) {
+    showAlert("Failed to send sticker", true);
+  }
+}
+
+/* ---------- GIF Picker (Giphy) ---------- */
+const GIPHY_API_KEY = "dc6zaTOxFJmzC"; // Giphy's public demo/testing key - swap for your own production key
+const gifSearchInput = document.getElementById("gifSearchInput");
+const gifPickerGrid = document.getElementById("gifPickerGrid");
+let gifSearchDebounceTimer = null;
+let gifPanelLoadedOnce = false;
+
+async function fetchGifs(term) {
+  gifPickerGrid.innerHTML = `<div class="pro-panel-loading">Loading GIFs…</div>`;
+  try {
+    const endpoint = term
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(term)}&limit=24&rating=g`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=24&rating=g`;
+    const res = await fetch(endpoint);
+    const data = await res.json();
+    gifPickerGrid.innerHTML = "";
+    const results = (data && data.data) || [];
+    if (results.length === 0) {
+      gifPickerGrid.innerHTML = `<div class="pro-panel-empty">No GIFs found</div>`;
+      return;
+    }
+    results.forEach(gif => {
+      const previewUrl = gif.images && gif.images.fixed_width_small ? gif.images.fixed_width_small.url : (gif.images.original.url);
+      const fullUrl = gif.images && gif.images.original ? gif.images.original.url : previewUrl;
+      const cell = document.createElement("button");
+      cell.className = "pro-gif-cell";
+      cell.innerHTML = `<img src="${previewUrl}" loading="lazy" alt="gif">`;
+      cell.onclick = (e) => {
+        e.stopPropagation();
+        sendGifMessage(fullUrl);
+      };
+      gifPickerGrid.appendChild(cell);
+    });
+  } catch (e) {
+    gifPickerGrid.innerHTML = `<div class="pro-panel-empty">Couldn't load GIFs. Check your connection.</div>`;
+  }
+}
+
+gifSearchInput.addEventListener("click", e => e.stopPropagation());
+gifSearchInput.addEventListener("input", () => {
+  clearTimeout(gifSearchDebounceTimer);
+  gifSearchDebounceTimer = setTimeout(() => fetchGifs(gifSearchInput.value.trim()), 450);
+});
+
+async function sendGifMessage(url) {
+  if (!currentChatUser) return showAlert("Please select a user or group to chat with first!", true);
+  if (!checkRateLimit("sendMessage", 1000)) {
+    return showAlert("You are sending messages too fast. Please slow down.", true);
+  }
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot send messages to or from a blocked user.", true);
+  }
+  gifPicker.classList.remove("open");
+  try {
+    const payload = {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: "",
+      type: "gif",
+      attachments: [{ url: url, type: "image/gif", public_id: "" }],
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: null
+    };
+    if (currentChatDisappearing > 0) payload.expiresAt = Date.now() + currentChatDisappearing;
+    await addDoc(collection(db, "messages"), payload);
+  } catch (e) {
+    showAlert("Failed to send GIF", true);
+  }
+}
+
+/* ---------- Panel open/close orchestration (additive to existing emoji tray) ---------- */
+const fullEmojiBtn = document.getElementById("fullEmojiBtn");
+const fullEmojiPicker = document.getElementById("fullEmojiPicker");
+const stickerToggleBtn = document.getElementById("stickerToggleBtn");
+const stickerPicker = document.getElementById("stickerPicker");
+const gifToggleBtn = document.getElementById("gifToggleBtn");
+const gifPicker = document.getElementById("gifPicker");
+const proPanels = [fullEmojiPicker, stickerPicker, gifPicker];
+
+function closeAllProPanels() {
+  proPanels.forEach(p => p.classList.remove("open"));
+}
+proPanels.forEach(p => p.addEventListener("click", e => e.stopPropagation()));
+
+fullEmojiBtn.onclick = (e) => {
+  e.stopPropagation();
+  emojiTray.style.display = "none";
+  const willOpen = !fullEmojiPicker.classList.contains("open");
+  closeAllProPanels();
+  if (willOpen) { fullEmojiPicker.classList.add("open"); emojiSearchInput.focus(); }
+};
+
+stickerToggleBtn.onclick = (e) => {
+  e.stopPropagation();
+  emojiTray.style.display = "none";
+  const willOpen = !stickerPicker.classList.contains("open");
+  closeAllProPanels();
+  if (willOpen) stickerPicker.classList.add("open");
+};
+
+gifToggleBtn.onclick = (e) => {
+  e.stopPropagation();
+  emojiTray.style.display = "none";
+  const willOpen = !gifPicker.classList.contains("open");
+  closeAllProPanels();
+  if (willOpen) {
+    gifPicker.classList.add("open");
+    if (!gifPanelLoadedOnce) { gifPanelLoadedOnce = true; fetchGifs(""); }
+  }
+};
+
+// Extend the existing "click outside closes tray" behavior to also close PRO panels,
+// without altering the original emojiTray-closing line.
+document.body.addEventListener("click", () => {
+  closeAllProPanels();
+});
+
+const attachBtn = document.getElementById("attachBtn");
+const fileInput = document.getElementById("fileInput");
+attachBtn.onclick = () => fileInput.click();
+
+let mediaRecorder = null;
+let audioChunks = [];
+let recordedAudioBlob = null;
+const recordVoiceBtn = document.getElementById("recordVoiceBtn");
+let isRecording = false;
+
+function stopMediaTracks(stream) {
+  if (!stream) return;
+  try {
+    stream.getTracks().forEach(track => track.stop());
+  } catch (err) {}
+}
+
+recordVoiceBtn.onclick = async () => {
+  if (!checkRateLimit("recordVoice", 2000)) {
+    return showAlert("Please wait before recording another voice note.", true);
+  }
+
+  if (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser)) {
+    return showAlert("Cannot send voice notes to a blocked user.", true);
+  }
+
+  if (!isRecording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        stopMediaTracks(stream);
+        if (recordedAudioBlob && currentChatUser) await sendAudioMessage(recordedAudioBlob);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      recordVoiceBtn.classList.add("recording");
+      showAlert("Recording voice note...");
+    } catch (err) {
+      showAlert("Microphone unavailable", true);
+    }
+  } else {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    isRecording = false;
+    recordVoiceBtn.classList.remove("recording");
+  }
+};
+
+async function sendAudioMessage(blob) {
+  if (!currentChatUser) return;
+  try {
+    const audioFile = new File([blob], "voice_note.webm", { type: "audio/webm" });
+    const uploadedAsset = await validateAndUploadFile(audioFile);
+
+    await addDoc(collection(db, "messages"), {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: "",
+      attachments: [uploadedAsset],
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: null
+    });
+  } catch (err) {
+    showAlert(err.message || "Failed to send voice note", true);
+  }
+}
+
+const replyPreviewBar = document.getElementById("replyPreviewBar");
+const replyPreviewText = document.getElementById("replyPreviewText");
+document.getElementById("cancelReplyBtn").onclick = () => {
+  activeReplyTo = null;
+  replyPreviewBar.style.display = "none";
+};
+
+// ---- Built-in AI Assistant: intent detection + reply generation (reuses AI.html's free endpoints) ----
+function detectAIIntent(text) {
+  const t = text.toLowerCase();
+  const imagePatterns = [
+    /\bdraw\b/, /\bgenerate (an |a )?image\b/, /\bcreate (an |a )?image\b/,
+    /\bimage of\b/, /\bpicture of\b/, /\bphoto of\b/, /\bpaint\b/,
+    /\billustrat/, /\bart of\b/, /\bgenerate art\b/, /\bmake (an |a )?image\b/,
+    /\bshow me (an |a )?image\b/, /\bwallpaper of\b/
+  ];
+  const codePatterns = [
+    /\bwrite (a |an )?(function|script|program|code|class|algorithm|regex)\b/,
+    /\bcode for\b/, /\bfix (this|my) code\b/, /\bdebug\b/, /\bregex for\b/,
+    /\bsql query\b/, /\bhtml for\b/, /\bcss for\b/, /\bjavascript\b/,
+    /\bpython\b/, /\bcode snippet\b/, /\brefactor\b/, /\bwrite a program\b/
+  ];
+  if (imagePatterns.some(p => p.test(t))) return "image";
+  if (codePatterns.some(p => p.test(t))) return "code";
+  return "chat";
+}
+
+async function generateAIReply(userText, userMsgId) {
+  const typingRef = doc(db, "typing", `${AI_USERNAME}_${currentUser}`);
+  const recipient = currentUser;
+  try {
+    await setDoc(typingRef, { isTyping: true, time: Date.now() }, { merge: true });
+
+    if (userMsgId) {
+      try {
+        await updateDoc(doc(db, "messages", userMsgId), { seenBy: [recipient, AI_USERNAME] });
+      } catch (e) {}
+    }
+
+    const intent = detectAIIntent(userText);
+
+    if (intent === "image") {
+      const encodedPrompt = encodeURIComponent(userText);
+      const imageUrl = `${AI_IMAGE_ENDPOINT}${encodedPrompt}`;
+      await addDoc(collection(db, "messages"), {
+        from: AI_USERNAME,
+        to: recipient,
+        isGroup: false,
+        text: "",
+        attachments: [{ url: imageUrl, type: "image/png", public_id: "" }],
+        time: Date.now(),
+        seenBy: [AI_USERNAME],
+        reactions: {},
+        replyTo: null
+      });
+    } else {
+      const promptText = intent === "code" ? `Provide clean code block only for: ${userText}` : userText;
+      const res = await fetch(AI_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "default", messages: [{ role: "user", content: promptText }] })
+      });
+      const data = await res.json();
+      const replyText = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+        || "Sorry, I couldn't generate a response right now.";
+
+      await addDoc(collection(db, "messages"), {
+        from: AI_USERNAME,
+        to: recipient,
+        isGroup: false,
+        text: replyText,
+        attachments: [],
+        time: Date.now(),
+        seenBy: [AI_USERNAME],
+        reactions: {},
+        replyTo: null
+      });
+    }
+  } catch (err) {
+    try {
+      await addDoc(collection(db, "messages"), {
+        from: AI_USERNAME,
+        to: recipient,
+        isGroup: false,
+        text: "⚠️ Sorry, I ran into an error generating a response. Please try again.",
+        attachments: [],
+        time: Date.now(),
+        seenBy: [AI_USERNAME],
+        reactions: {},
+        replyTo: null
+      });
+    } catch (e2) {}
+  } finally {
+    try {
+      await setDoc(typingRef, { isTyping: false, time: Date.now() }, { merge: true });
+    } catch (e) {}
+  }
+}
+
+const sendBtn = document.getElementById("sendBtn");
+sendBtn.onclick = async () => {
+  if (!checkRateLimit("sendMessage", 1000)) {
+    return showAlert("You are sending messages too fast. Please slow down.", true);
+  }
+
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot send messages to or from a blocked user.", true);
+  }
+
+  const text = messageInput.value.trim();
+  const files = fileInput.files;
+
+  if (!currentChatUser) {
+    return showAlert("Please select a user or group to chat with first!", true);
+  }
+
+  if (!text && files.length === 0) {
+    return showAlert("Cannot send an empty message", true);
+  }
+
+  if (files.length > MAX_FILES_PER_MESSAGE) {
+    return showAlert(`Maximum ${MAX_FILES_PER_MESSAGE} attachments allowed per message.`, true);
+  }
+
+  sendBtn.disabled = true;
+  const originalText = sendBtn.textContent;
+  sendBtn.textContent = "...";
+
+  try {
+    const typingRef = doc(db, "typing", `${currentUser}_${currentChatUser}`);
+    await setDoc(typingRef, { isTyping: false, time: Date.now() }, { merge: true });
+
+    let attachments = [];
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const uploadedAsset = await validateAndUploadFile(files[i]);
+        attachments.push(uploadedAsset);
+      }
+    }
+
+    let sanitizedReplyTo = null;
+    if (activeReplyTo) {
+      sanitizedReplyTo = {
+        id: activeReplyTo.id,
+        text: activeReplyTo.text,
+        from: activeReplyTo.from
+      };
+    }
+
+    const sentMsgRef = await addDoc(collection(db, "messages"), {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      text: text,
+      attachments: attachments,
+      time: Date.now(),
+      seenBy: [currentUser],
+      reactions: {},
+      replyTo: sanitizedReplyTo
+    });
+
+    messageInput.value = "";
+    fileInput.value = "";
+    activeReplyTo = null;
+    replyPreviewBar.style.display = "none";
+
+    if (currentChatUser === AI_USERNAME && text) {
+      generateAIReply(text, sentMsgRef.id);
+    }
+  } catch (err) {
+    showAlert(err.message || "Failed to send message", true);
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = originalText;
+  }
+};
+
+const deleteChatBtn = document.getElementById("deleteChatBtn");
+deleteChatBtn.onclick = async () => {
+  if (!currentChatUser) return;
+  showConfirm(`Clear chat with ${currentChatUser}?`, async () => {
+    try {
+      let q;
+      if (currentChatType === "group") {
+        q = query(collection(db, "messages"), where("to", "==", currentChatUser), where("isGroup", "==", true));
+      } else {
+        q = query(collection(db, "messages"));
+      }
+      const snap = await getDocs(q);
+      const batch = writeBatch(db);
+      snap.forEach(docSnap => {
+        const m = docSnap.data();
+        let matches = false;
+        if (currentChatType === "group") {
+          matches = m.isGroup === true && m.to === currentChatUser;
+        } else {
+          matches = !m.isGroup && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+        }
+
+        if (matches) {
+          if (m.attachments && Array.isArray(m.attachments)) {
+            queueCloudinaryDeletion(m.attachments);
+          }
+          batch.delete(doc(db, "messages", docSnap.id));
+        }
+      });
+      await batch.commit();
+
+      messages.innerHTML = "";
+      lastVisibleMessageDoc = null;
+      olderMessagesAvailable = false;
+      showAlert("Chat cleared and all associated media/messages cleaned up.");
+    } catch (e) {
+      showAlert("Error clearing chat", true);
+    }
+  });
+};
+
+window.unsendMessage = async (docId) => {
+  showConfirm("Unsend this message?", async () => {
+    try {
+      const msgRef = doc(db, "messages", docId);
+      const msgSnap = await getDoc(msgRef);
+      if (msgSnap.exists()) {
+        const mData = msgSnap.data();
+        if (mData.from !== currentUser && currentUser.toLowerCase() !== "admin") {
+          return showAlert("Unauthorized: You can only unsend your own messages.", true);
+        }
+        if (mData.attachments && Array.isArray(mData.attachments)) {
+          await queueCloudinaryDeletion(mData.attachments);
+        }
+      }
+      await deleteDoc(msgRef);
+      showAlert("Message unsent and media cleaned up.");
+    } catch (e) {
+      showAlert("Failed to unsend message", true);
+    }
+  });
+};
+
+window.editMessage = async (docId, currentText) => {
+  const newText = prompt("Edit message:", currentText);
+  if (newText === null || newText.trim() === "") return;
+  try {
+    const msgRef = doc(db, "messages", docId);
+    const msgSnap = await getDoc(msgRef);
+    if (msgSnap.exists() && msgSnap.data().from !== currentUser) {
+      return showAlert("Unauthorized: You can only edit your own messages.", true);
+    }
+    await updateDoc(msgRef, {
+      text: newText.trim(),
+      edited: true
+    });
+    showAlert("Message updated");
+  } catch (e) {
+    showAlert("Failed to update message", true);
+  }
+};
+
+function parseMarkdown(text) {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  
+  escaped = escaped.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+  escaped = escaped.replace(/_(.*?)_/g, '<em>$1</em>');
+  escaped = escaped.replace(/~(.*?)~/g, '<del>$1</del>');
+  escaped = escaped.replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.4); padding:2px 6px; border-radius:4px; font-family:monospace; color:#a3f1c0;">$1</code>');
+  
+  return escaped;
+}
+
+window.copyMessageText = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    showAlert("Copied to clipboard!");
+  }).catch(() => {
+    showAlert("Failed to copy", true);
+  });
+};
+
+let lastNotifiedMsgId = "";
+
+function loadMessages() {
+  if (!currentChatUser) return;
+  if (activeMessagesUnsubscribe) {
+    activeMessagesUnsubscribe();
+    activeMessagesUnsubscribe = null;
+  }
+
+  messages.innerHTML = "";
+  lastVisibleMessageDoc = null;
+  olderMessagesAvailable = true;
+
+  let messagesQuery;
+  if (currentChatType === "group") {
+    messagesQuery = query(
+      collection(db, "messages"),
+      where("isGroup", "==", true),
+      where("to", "==", currentChatUser),
+      orderBy("time", "desc"),
+      limit(35)
+    );
+  } else {
+    messagesQuery = query(
+      collection(db, "messages"),
+      where("isGroup", "==", false),
+      orderBy("time", "desc"),
+      limit(100)
+    );
+  }
+
+  activeMessagesUnsubscribe = onSnapshot(messagesQuery, async snap => {
+    let unreadDocsToMark = [];
+    const messageMap = {};
+    const matchedDocs = [];
+
+    snap.docs.forEach(docSnap => {
+      const m = docSnap.data();
+      messageMap[docSnap.id] = m;
+      let isMatch = false;
+
+      if (currentChatType === "group") {
+        isMatch = m.isGroup === true && m.to === currentChatUser;
+      } else {
+        isMatch = m.isGroup === false && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+      }
+
+      if (isMatch) {
+        matchedDocs.push({ id: docSnap.id, ...m });
+      }
+    });
+
+    if (snap.docs.length > 0) {
+      lastVisibleMessageDoc = snap.docs[snap.docs.length - 1];
+    }
+    if (snap.docs.length < 35) {
+      olderMessagesAvailable = false;
+    }
+
+    matchedDocs.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+    messages.innerHTML = "";
+    matchedDocs.forEach(m => {
+      const docId = m.id;
+      let seenBy = m.seenBy || [];
+      if (m.from !== currentUser && !seenBy.includes(currentUser)) {
+        unreadDocsToMark.push(docId);
+        if (docId !== lastNotifiedMsgId && "Notification" in window && Notification.permission === "granted") {
+          lastNotifiedMsgId = docId;
+          try {
+            new Notification(`New message from @${m.from}`, { body: m.text || "Sent an attachment" });
+          } catch (e) {}
+        }
+      }
+
+      const div = document.createElement("div");
+      div.className = "bubble " + (m.from === currentUser ? "sent" : "received");
+      
+      let lastClick = 0;
+      div.onclick = async (e) => {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastClick;
+        if (tapLength < 300 && tapLength > 0) {
+          e.stopPropagation();
+          const reactions = m.reactions || {};
+          reactions[currentUser] = "❤️";
+          await updateDoc(doc(db, "messages", docId), { reactions: reactions });
+        } else {
+          let replyTextSummary = m.text || "";
+          if (!replyTextSummary && m.attachments && m.attachments.length > 0) {
+            const firstType = m.attachments[0].type || "";
+            if (firstType.startsWith("image/")) replyTextSummary = "[Image]";
+            else if (firstType.startsWith("video/")) replyTextSummary = "[Video]";
+            else if (firstType.startsWith("audio/")) replyTextSummary = "[Voice Note]";
+            else replyTextSummary = "[Attachment]";
+          }
+          activeReplyTo = { id: docId, text: replyTextSummary || "Attachment", from: m.from };
+          replyPreviewText.textContent = `Replying to @${m.from}: ${activeReplyTo.text}`;
+          replyPreviewBar.style.display = "flex";
+          messageInput.focus();
+        }
+        lastClick = currentTime;
+      };
+
+      let attachmentsHTML = "";
+      if (m.attachments && Array.isArray(m.attachments)) {
+        m.attachments.forEach(file => { attachmentsHTML += renderFile(file.url, file.type); });
+      }
+
+      let replyQuoteHTML = "";
+      if (m.replyTo && messageMap[m.replyTo.id]) {
+        replyQuoteHTML = `<div class="reply-quote"><strong>@${m.replyTo.from}</strong>: ${m.replyTo.text}</div>`;
+      } else if (m.replyTo && !messageMap[m.replyTo.id]) {
+        replyQuoteHTML = `<div class="reply-quote"><strong>@${m.replyTo.from}</strong>: Original message removed</div>`;
+      }
+
+      const senderLabel = (currentChatType === "group" && m.from !== currentUser) 
+        ? `<div style="font-size:0.75rem; color:var(--primary); font-weight:bold; margin-bottom: 2px;">@${m.from}</div>` 
+        : "";
+
+      let reactionsHTML = "";
+      if (m.reactions && Object.keys(m.reactions).length > 0) {
+        let badges = "";
+        Object.values(m.reactions).forEach(emoji => { badges += emoji; });
+        reactionsHTML = `<div class="reactions-container"><span class="reaction-badge">${badges}</span></div>`;
+      }
+
+      let seenIndicator = "";
+      let editUnsendActions = "";
+      let copyActionBtn = "";
+
+      if (m.text) {
+        const escapedTextForCopy = m.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        copyActionBtn = `<button class="msg-action-link" onclick="event.stopPropagation(); copyMessageText('${escapedTextForCopy}')">Copy</button>`;
+      }
+
+      if (m.from === currentUser) {
+        const isSeen = currentChatType === "group" ? (seenBy.length > 1) : seenBy.includes(currentChatUser);
+        seenIndicator = `<span class="seen-status">${isSeen ? '✓✓ Seen' : '✓ Sent'}</span>`;
+        
+        const escapedText = (m.text || "").replace(/'/g, "\\'");
+        editUnsendActions = `
+          <span class="msg-actions-inline">
+            ${copyActionBtn}
+            ${m.text ? `<button class="msg-action-link" onclick="event.stopPropagation(); editMessage('${docId}', '${escapedText}')">Edit</button>` : ""}
+            <button class="msg-action-link danger" onclick="event.stopPropagation(); unsendMessage('${docId}')">Unsend</button>
+          </span>
+        `;
+      } else if (m.text) {
+        editUnsendActions = `<span class="msg-actions-inline">${copyActionBtn}</span>`;
+      }
+
+      const editedTag = m.edited ? `<span style="font-size:0.65rem; opacity:0.6; font-style:italic;">(edited)</span>` : "";
+      const parsedText = parseMarkdown(m.text);
+
+      div.innerHTML = `
+        ${senderLabel}
+        ${replyQuoteHTML}
+        ${m.text ? `<div>${parsedText} ${editedTag}</div>` : ""}
+        ${attachmentsHTML}
+        ${reactionsHTML}
+        <div class="meta">
+          <span>${new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          ${seenIndicator}
+          ${editUnsendActions}
+        </div>
+      `;
+      messages.appendChild(div);
+    });
+
+    if (chatMessageFilterInput.value.trim()) {
+      filterMessagesInDOM(chatMessageFilterInput.value.trim().toLowerCase());
+    }
+
+    messages.scrollTop = messages.scrollHeight;
+
+    if (unreadDocsToMark.length > 0) {
+      for (let docId of unreadDocsToMark) {
+        try {
+          const msgRef = doc(db, "messages", docId);
+          const msgSnap = await getDoc(msgRef);
+          if (msgSnap.exists()) {
+            let currentSeen = msgSnap.data().seenBy || [];
+            if (!currentSeen.includes(currentUser)) {
+              currentSeen.push(currentUser);
+              await updateDoc(msgRef, { seenBy: currentSeen });
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  });
+}
+
+messages.onscroll = async () => {
+  if (messages.scrollTop === 0 && olderMessagesAvailable && !isFetchingOlderMessages && lastVisibleMessageDoc) {
+    isFetchingOlderMessages = true;
+    const oldScrollHeight = messages.scrollHeight;
+
+    try {
+      let olderQuery;
+      if (currentChatType === "group") {
+        olderQuery = query(
+          collection(db, "messages"),
+          where("isGroup", "==", true),
+          where("to", "==", currentChatUser),
+          orderBy("time", "desc"),
+          startAfter(lastVisibleMessageDoc),
+          limit(25)
+        );
+      } else {
+        olderQuery = query(
+          collection(db, "messages"),
+          where("isGroup", "==", false),
+          orderBy("time", "desc"),
+          startAfter(lastVisibleMessageDoc),
+          limit(25)
+        );
+      }
+
+      const snapshot = await getDocs(olderQuery);
+      if (snapshot.docs.length > 0) {
+        lastVisibleMessageDoc = snapshot.docs[snapshot.docs.length - 1];
+        const olderDocs = [];
+        snapshot.docs.forEach(docSnap => {
+          const m = docSnap.data();
+          let isMatch = false;
+          if (currentChatType === "group") {
+            isMatch = m.isGroup === true && m.to === currentChatUser;
+          } else {
+            isMatch = m.isGroup === false && ((m.from === currentUser && m.to === currentChatUser) || (m.from === currentChatUser && m.to === currentUser));
+          }
+          if (isMatch) olderDocs.push({ id: docSnap.id, ...m });
+        });
+
+        olderDocs.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+        const fragment = document.createDocumentFragment();
+        olderDocs.forEach(m => {
+          const docId = m.id;
+          const div = document.createElement("div");
+          div.className = "bubble " + (m.from === currentUser ? "sent" : "received");
+          
+          let attachmentsHTML = "";
+          if (m.attachments && Array.isArray(m.attachments)) {
+            m.attachments.forEach(file => { attachmentsHTML += renderFile(file.url, file.type); });
+          }
+
+          let seenIndicator = "";
+          if (m.from === currentUser) {
+            const seenBy = m.seenBy || [];
+            const isSeen = currentChatType === "group" ? (seenBy.length > 1) : seenBy.includes(currentChatUser);
+            seenIndicator = `<span class="seen-status">${isSeen ? '✓✓ Seen' : '✓ Sent'}</span>`;
+          }
+
+          const parsedText = parseMarkdown(m.text);
+
+          div.innerHTML = `
+            ${m.text ? `<div>${parsedText}</div>` : ""}
+            ${attachmentsHTML}
+            <div class="meta">
+              <span>${new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              ${seenIndicator}
+            </div>
+          `;
+          fragment.appendChild(div);
+        });
+
+        messages.insertBefore(fragment, messages.firstChild);
+        messages.scrollTop = messages.scrollHeight - oldScrollHeight;
+      } else {
+        olderMessagesAvailable = false;
+      }
+    } catch (e) {
+    } finally {
+      isFetchingOlderMessages = false;
+    }
+  }
+};
+
+let localStream = null;
+let peerConnections = {};
+let remoteStreams = {};
+let activeCallId = null;
+let isVideoCall = false;
+let callDocUnsubscribe = null;
+let candidatesUnsubscribe = null;
+let callTimeoutHandle = null;
+
+const servers = { iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] };
+
+const callModal = document.getElementById("callModal");
+const callTitle = document.getElementById("callTitle");
+const callStatusText = document.getElementById("callStatusText");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const videoGridContainer = document.getElementById("videoGridContainer");
+const acceptCallBtn = document.getElementById("acceptCallBtn");
+const toggleMicBtn = document.getElementById("toggleMicBtn");
+const toggleCamBtn = document.getElementById("toggleCamBtn");
+const endCallBtn = document.getElementById("endCallBtn");
+
+voiceCallBtn.onclick = () => startCall(false);
+videoCallBtn.onclick = () => startCall(true);
+
+let isAudioMuted = false;
+let isVideoOff = false;
+
+toggleMicBtn.onclick = () => {
+  if (!localStream) return;
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (audioTrack) {
+    isAudioMuted = !isAudioMuted;
+    audioTrack.enabled = !isAudioMuted;
+    toggleMicBtn.textContent = isAudioMuted ? "Unmute Mic" : "Mute Mic";
+    toggleMicBtn.style.background = isAudioMuted ? "var(--danger)" : "var(--glass)";
+  }
+};
+
+toggleCamBtn.onclick = () => {
+  if (!localStream) return;
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (videoTrack) {
+    isVideoOff = !isVideoOff;
+    videoTrack.enabled = !isVideoOff;
+    toggleCamBtn.textContent = isVideoOff ? "Cam On" : "Cam Off";
+    toggleCamBtn.style.background = isVideoOff ? "var(--danger)" : "var(--glass)";
+  }
+};
+
+async function startCall(video) {
+  if (!checkRateLimit("startCall", 5000)) {
+    return showAlert("Please wait before starting another call.", true);
+  }
+
+  if (!currentChatUser) return;
+  if (currentChatUser === AI_USERNAME) {
+    return showAlert("You can't call the AI Assistant.", true);
+  }
+  if (currentChatType === "group") {
+    return showAlert("Group calls aren't supported yet.", true);
+  }
+  if (currentChatType === "user" && (blockedUsers.includes(currentChatUser) || blockedByUsers.includes(currentChatUser))) {
+    return showAlert("Cannot initiate calls with a blocked user.", true);
+  }
+
+  isVideoCall = video;
+  callModal.style.display = "flex";
+  callTitle.textContent = `Calling ${currentChatUser}...`;
+  callStatusText.textContent = "Initializing media...";
+  acceptCallBtn.style.display = "none";
+  toggleMicBtn.style.display = "inline-block";
+  toggleCamBtn.style.display = isVideoCall ? "inline-block" : "none";
+  isAudioMuted = false;
+  isVideoOff = false;
+  toggleMicBtn.textContent = "Mute Mic";
+  toggleMicBtn.style.background = "var(--glass)";
+  toggleCamBtn.textContent = "Cam Off";
+  toggleCamBtn.style.background = "var(--glass)";
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoCall });
+    localVideo.srcObject = localStream;
+    if (isVideoCall) localVideo.classList.add("active"); else localVideo.classList.remove("active");
+
+    const callRef = doc(collection(db, "calls"));
+    activeCallId = callRef.id;
+
+    await setDoc(callRef, {
+      from: currentUser,
+      to: currentChatUser,
+      isGroup: currentChatType === "group",
+      isVideo: isVideoCall,
+      status: "ringing",
+      participants: [currentUser],
+      time: Date.now()
+    });
+    callStatusText.textContent = "Ringing...";
+
+    if (currentChatType === "user") {
+      const pc = createPeerConnection(currentChatUser);
+      pc.onicecandidate = e => { if (e.candidate) addDoc(collection(db, "calls", activeCallId, `candidates_${currentUser}_${currentChatUser}`), e.candidate.toJSON()); };
+
+      const offerDescription = await pc.createOffer();
+      await pc.setLocalDescription(offerDescription);
+      await updateDoc(callRef, { [`offers.${currentUser}`]: { type: offerDescription.type, sdp: offerDescription.sdp } });
+
+      callDocUnsubscribe = onSnapshot(callRef, snapshot => {
+        const data = snapshot.data();
+        if (data && data.answers && data.answers[currentChatUser] && !pc.currentRemoteDescription) {
+          pc.setRemoteDescription(new RTCSessionDescription(data.answers[currentChatUser]));
+          callStatusText.textContent = "Connected";
+          if (callTimeoutHandle) { clearTimeout(callTimeoutHandle); callTimeoutHandle = null; }
+        }
+        if (!snapshot.exists() || (data && data.status === "ended")) {
+          showAlert("Call end");
+          hangUpCall(false);
+        }
+        if (data && data.status === "rejected") {
+          showAlert("Call rejected", true);
+          hangUpCall(false);
+        }
+      });
+
+      candidatesUnsubscribe = onSnapshot(collection(db, "calls", activeCallId, `candidates_${currentChatUser}_${currentUser}`), snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+        });
+      });
+
+      // No-answer timeout: auto end the call if the callee never answers within the ring window
+      if (callTimeoutHandle) clearTimeout(callTimeoutHandle);
+      callTimeoutHandle = setTimeout(() => {
+        showAlert("No answer. Call ended.", true);
+        hangUpCall(true);
+      }, 45000);
+    }
+  } catch (err) {
+    showAlert("Media access failed", true);
+    hangUpCall(true);
+  }
+}
+
+function listenForIncomingCalls() {
+  if (incomingCallUnsubscribe) { incomingCallUnsubscribe(); incomingCallUnsubscribe = null; }
+  incomingCallUnsubscribe = onSnapshot(query(collection(db, "calls"), where("status", "==", "ringing")), snapshot => {
+    snapshot.docChanges().forEach(async change => {
+      if (change.type === "added") {
+        const callData = change.doc.data();
+
+        // Ignore stale/expired ringing calls (e.g. from before this client connected)
+        const RING_WINDOW_MS = 45000;
+        if (!callData.time || (Date.now() - callData.time) > RING_WINDOW_MS) {
+          return;
+        }
+
+        const isGroupCall = callData.isGroup === true;
+        const isForMe = isGroupCall ? (allGroups.some(g => g.id === callData.to && g.members.includes(currentUser))) : (callData.to === currentUser);
+        
+        if (isForMe && callData.from !== currentUser) {
+          activeCallId = change.doc.id;
+          isVideoCall = callData.isVideo;
+          callModal.style.display = "flex";
+          callTitle.textContent = `Incoming ${isVideoCall ? 'Video' : 'Voice'} Call from @${callData.from}`;
+          callStatusText.textContent = "Ringing...";
+          acceptCallBtn.style.display = "inline-block";
+          toggleMicBtn.style.display = "none";
+          toggleCamBtn.style.display = "none";
+        }
+      }
+    });
+  });
+}
+
+acceptCallBtn.onclick = async () => {
+  if (!activeCallId) return;
+  acceptCallBtn.style.display = "none";
+  toggleMicBtn.style.display = "inline-block";
+  toggleCamBtn.style.display = isVideoCall ? "inline-block" : "none";
+  callStatusText.textContent = "Connecting...";
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoCall });
+    localVideo.srcObject = localStream;
+    if (isVideoCall) localVideo.classList.add("active"); else localVideo.classList.remove("active");
+
+    const callRef = doc(db, "calls", activeCallId);
+    const callSnap = await getDoc(callRef);
+    if (!callSnap.exists()) return;
+    const callData = callSnap.data();
+    const callerName = callData.from;
+
+    const pc = createPeerConnection(callerName);
+    pc.onicecandidate = e => { if (e.candidate) addDoc(collection(db, "calls", activeCallId, `candidates_${currentUser}_${callerName}`), e.candidate.toJSON()); };
+
+    if (callData.offers && callData.offers[callerName]) {
+      await pc.setRemoteDescription(new RTCSessionDescription(callData.offers[callerName]));
+      const answerDescription = await pc.createAnswer();
+      await pc.setLocalDescription(answerDescription);
+      await updateDoc(callRef, { [`answers.${currentUser}`]: { type: answerDescription.type, sdp: answerDescription.sdp }, status: "connected" });
+      callStatusText.textContent = "Connected";
+    }
+
+    candidatesUnsubscribe = onSnapshot(collection(db, "calls", activeCallId, `candidates_${callerName}_${currentUser}`), snapshot => {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+      });
+    });
+
+    callDocUnsubscribe = onSnapshot(callRef, snapshot => {
+      const data = snapshot.data();
+      if (!snapshot.exists() || (data && data.status === "ended")) {
+        showAlert("Call ended");
+        hangUpCall(false);
+      }
+    });
+  } catch (err) {
+    showAlert("Failed to answer call", true);
+    hangUpCall(true);
+  }
+};
+
+function createPeerConnection(targetUser) {
+  const pc = new RTCPeerConnection(servers);
+  peerConnections[targetUser] = pc;
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  pc.ontrack = event => {
+    remoteStreams[targetUser] = event.streams[0];
+    remoteVideo.srcObject = event.streams[0];
+    remoteVideo.classList.add("active");
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      hangUpCall(false);
+    }
+  };
+
+  return pc;
+}
+
+endCallBtn.onclick = () => hangUpCall(true);
+
+async function hangUpCall(updateDb) {
+  if (activeCallId && updateDb) {
+    try {
+      await updateDoc(doc(db, "calls", activeCallId), { status: "ended" });
+    } catch (e) {}
+  }
+
+  if (callTimeoutHandle) { clearTimeout(callTimeoutHandle); callTimeoutHandle = null; }
+  if (callDocUnsubscribe) { callDocUnsubscribe(); callDocUnsubscribe = null; }
+  if (candidatesUnsubscribe) { candidatesUnsubscribe(); candidatesUnsubscribe = null; }
+
+  if (localStream) {
+    stopMediaTracks(localStream);
+    localStream = null;
+  }
+
+  Object.values(peerConnections).forEach(pc => pc.close());
+  peerConnections = {};
+  remoteStreams = {};
+
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+  localVideo.classList.remove("active");
+  remoteVideo.classList.remove("active");
+  callModal.style.display = "none";
+  activeCallId = null;
+}
+</script>
+</body>
+</html>
